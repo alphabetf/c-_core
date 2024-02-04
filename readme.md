@@ -171,3 +171,36 @@ Public:
 };
 ```
 
+**设计模式:Composite**
+
+```c++
+/* 假设现在要设计一个文件系统,那么一个目录中可能有文件也可能有目录,则我们需要设计一个目录类，一个文件类
+   目录类既可以添加文件类又可以添加目录类自身 */
+class Component
+{
+    int value;
+public：
+    Component(int val) { value = val; }
+    virtual void add(Component*){ }		/* 文件中不能添加文件或者目录,所以默认为空 */
+};
+
+/* 这是一个文件类,用于标识文件 */
+class Primitive:public Componet
+{
+public:
+    Primitive(int val):Component(val){}
+};
+
+/* 这是一个目录类,用于标识目录 */
+class Composite:public Component
+{
+    vector<Component*> c;
+public:
+    Composite(int val):Component(val){}
+    
+    void add(Component* elem){	/* 目录中既可以添加文件也可以添加目录 */
+        c.push_back(elem);
+    }
+};
+```
+
