@@ -1,4 +1,4 @@
-##### C++核心
+ b##### C++核心
 
 在类中写的简短的成员函数实现，默认会自动隐式加上inline关键字，
 
@@ -996,10 +996,10 @@ class __list_iterator{
     
     reference operator*() const { return (*node).data; }
     pointer operator->() const { return &(operator*()); }
-    /* self是迭代器,返回的是迭代器实体 */
-    self& operator++()	{node = (link_type)((*node).next); return *this;} //前缀++i
-    /* 编译器解释时先遇到=和++,所以此处*this被编译器解释为self(迭代器实体)，所以调用的是拷贝构造函数和		 operator++()*/
-    self operator++(int) { self tmp = *this; ++*this; return tmp };	//后缀i++
+    /* self是迭代器,返回的是迭代器实体,返回引用类型,因为c++运行前置++连加,如:(++++i) */
+    self& operator++()	{node = (link_type)((*node).next); return *this;} //前置++i
+    /* 编译器解释时先遇到=和++,所以此处*this被编译器解释为self(迭代器实体)，所以这里调用的是拷贝构造函		 数和operator++(),返回值类型,因为c++不允许后置++连加,如:(i++++,编译报错)   */
+    self operator++(int) { self tmp = *this; ++*this; return tmp };	//后置i++
     ...
     __list_iterator(const iterator& x):node(x.node){ ... }  /* 迭代器的拷贝构造函数 */
 };
