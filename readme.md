@@ -863,3 +863,169 @@ C++标准库所有容器的迭代器遵循**“前闭后开 [ )”**区间
 *(c.end())	 /* 返回的迭代器指针,指向容器的“最后一个元素的后一个”地址 */
 ```
 
+**typename关键字:**
+
+​	typename关键字**只能用于模板参数或模板定义之中**
+
+​	typename用于**告诉编译器将该名称当成类型而不是变量**
+
+```c++
+template<typename _Iter>	/* 此处的typename用于模板参数 */
+ /* typename用于告诉编译器这是一个类型(iterator_traits<_Iter>::iterator_category是一个类型) */
+ inline typename iterator_traits<_Iter>::iterator_category 
+ __iterator_category(const _Iter&)
+ {
+     /* 返回这个类型的operator()函数结果 */
+     return typename Iterator_traits<_Iter>::iterator_category();
+ }
+```
+
+**allocator分配器:**
+
+```c++
+/* STL中的分配器为容器提供具体的内存分配与管理 */
+/* vector容器默认使用的是allocator分配器 */
+template<typename _Tp, typename _Alloc = std::allocator<_Tp>>
+  class vector: protected _Vector_base<_Tp,_Alloc>
+  { ... }
+/* list容器默认使用的是allocator分配器 */
+template<typename _Tp, typename _Alloc = std::allocator<_Tp>>
+  class list: protected _List_base<_Tp,_Alloc>
+  { ... }
+/* deque容器默认使用的是allocator分配器 */      
+template<typename _Tp, typename _Alloc = std::allocator<_Tp>>
+  class deque: protected _Deque_base<_Tp,_Alloc>
+  { ... }
+/* set容器默认使用的是allocator分配器 */      
+template<typename Key, typename _Compare = std::less<Key>, 
+					   typename _Alloc = std::allocator<_Key>>
+  class set { ... }
+/* map容器默认使用的是allocator分配器 */    
+template<typename _Key, typename _Tp, typename _Compare = std::less<_Key>,
+			typename _Alloc = std::allocator<std::pair<const _Key, _Tp>>>
+  class map { ... }
+/* unordered_set容器默认使用的是allocator分配器 */        
+template<class _Value, class _Hash = hash<_Value>
+    	 class _Pred = std::equal_to<_Value>
+         class _Alloc = std::allocator<_Value>>
+  class unordered_set { ... }
+/* unordered_map容器默认使用的是allocator分配器 */   
+template<class _Key, class _Tp,
+		 class _Hash = hash<_Key>,
+		 class _Pred = std::equal_to<_Key>
+         class _Alloc = std::allocator<std::pair<const _Key, _Tp>>>
+  class unordered_map { ... }
+```
+
+**GCC2.9 allocator<>实现源码：**
+
+```c++
+/* GCC2.9的allocator只是以::operator new和operator delete完成allocate()和deallocate(),没有如何特殊设计 */
+template <class T>
+  class allocator
+  {
+  public: 
+      typedef T		value_type;
+      typedef T*	pointer;
+      typedef size_t size_type;    
+      typedef ptrdiff_t difference_type
+      pointer allocate(size_type n){
+          return ::allocate((difference_type)n, (pointer)0); 	/* 分配内存 */
+      }
+      void deallocate(pointer p){ ::deallocate(p); }	/* 回收内存 */
+  }
+/* allocate实现 */
+template <class T>
+inline T* allocate(ptrdiff_t size, T*)
+{
+    set_new_handler(0);
+    T* tmp = (T*)(::operator new((size_t)(size*sizeof(T))));	/* 调用全局new() */
+    if(tmp == 0){
+        cerr << "out of memory" << nedl;
+        exit(1);
+    }
+    return tmp;
+}
+/* deallocate实现 */
+template<class T>
+inline void deallocate(T* buffer)
+{
+    ::operator delete(buffer);		/* 调用全局delete()函数 */
+}
+```
+
+**C++标准库中提供了多种分配器,allocator<>只是其中一种**
+
+```c++
+/* 直接使用分配器进行内存分配 */
+int* p;
+allocator<int> alloc1;  					/* 创建分配器 */
+p = alloc1.allocate(1);						/* 直接使用分配器分配内存 */
+alloc1.deallocate(p,1);						/* 归还分配器分配的内存 */
+__gun_cxx::malloc_allocator<int> alloc2;	/* 创建分配器 */
+p = alloc2.allocate(1);						/* 直接使用分配器分配内存 */
+alloc2.deallocate(p,1);						/* 归还分配器分配的内存 */
+__gun_cxx::new_allocator<int> alloc2;		/* 创建分配器 */
+p = alloc2.allocate(1);						/* 直接使用分配器分配内存 */
+alloc2.deallocate(p,1);						/* 归还分配器分配的内存 */
+__gun_cxx::__pool_allocator<int> alloc2;	/* 创建分配器 */
+p = alloc2.allocate(1);						/* 直接使用分配器分配内存 */
+alloc2.deallocate(p,1);						/* 归还分配器分配的内存 */
+__gun_cxx::__mt_allocator<int> alloc2;		/* 创建分配器 */
+p = alloc2.allocate(1);						/* 直接使用分配器分配内存 */
+alloc2.deallocate(p,1);						/* 归还分配器分配的内存 */
+__gun_cxx::bitmap_allocator<int> alloc2;	/* 创建分配器 */
+p = alloc2.allocate(1);						/* 直接使用分配器分配内存 */
+alloc2.deallocate(p,1);						/* 归还分配器分配的内存 */
+```
+
+**Iterator迭代器：**
+
+```c++
+/* list容器的迭代器 */
+template<class T, class Ref, class Ptr>
+class __list_iterator{
+    typedef _list_iterator<T, Ref, Ptr> self;
+    typedef bidirectioal_iterator_tag iterator_category;	/* 迭代器类型 */
+    typedef T 	value_type;									/* 迭代器中的值类型 */
+    typedef Ptr pointer;									/* 迭代器指针类型 */
+    typedef Ref reference;									/* 迭代器的引用类型 */
+    typedef ptrdiff_t difference_type;						/* 存储迭代器元素个数的类型 */
+    typedef __list_node<T>* link_type;
+    link_type node;											/* list容器中存储数据的节点 */
+    
+    reference operator*() const { return (*node).data; }
+    pointer operator->() const { return &(operator*()); }
+    /* self是迭代器,返回的是迭代器实体 */
+    self& operator++()	{node = (link_type)((*node).next); return *this;} //前缀++i
+    /* 编译器解释时先遇到=和++,所以此处*this被编译器解释为self(迭代器实体)，所以调用的是拷贝构造函数和		 operator++()*/
+    self operator++(int) { self tmp = *this; ++*this; return tmp };	//后缀i++
+    ...
+    __list_iterator(const iterator& x):node(x.node){ ... }  /* 迭代器的拷贝构造函数 */
+};
+/* list存储数据的节点 */
+template<class T>
+struct __list_node
+{
+	typedef void* void_pointer;
+	void_pointer prev;
+	void_pointer next;
+	T data;				
+};
+/* list容器 */
+template <class T， class Alloc = alloc>
+class list
+{
+protected:
+    typedef __list_node<T> list_node;
+public:
+    typedef list_node* link_type;
+    typedef __list_iterator<T,T&,T*> iterator;  /* 容器里面定义一个list迭代器类型 */
+protected:
+    link_type node;
+    ...
+};
+```
+
+
+
