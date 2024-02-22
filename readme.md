@@ -986,6 +986,7 @@ alloc2.deallocate(p,1);						/* 归还分配器分配的内存 */
 template<class T, class Ref, class Ptr>
 class __list_iterator{
     typedef _list_iterator<T, Ref, Ptr> self;
+    /* 迭代器原则:迭代器应为算法提供一下5种类型信息 */
     typedef bidirectioal_iterator_tag iterator_category;	/* 迭代器类型 */
     typedef T 	value_type;									/* 迭代器中的值类型 */
     typedef Ptr pointer;									/* 迭代器指针类型 */
@@ -1025,7 +1026,149 @@ protected:
     link_type node;
     ...
 };
+
+/* 使用 */
+list<Foo>::iterator ite;	/* 根据容器中的迭代器类型创建迭代器 */
+*ite 						/* 获取一个Foo对象 */
+/* 注意:当你对某一个类型实施operator->(),而这种类型又是非内建类型时,编译器在执行完这次operator->()
+   后,在返回值基础上继续重复着上面的operator->()操作,直到遇到内建类型,然后在进行成员值存取 */
+ite->method();				/* pointer operator->() const { return &(operator*()); } */
+ite->field = 7;
 ```
 
+**Traits特征提取器：**
 
+```c++
+/* 由于迭代器可能是自定义类型也可能是一个指针,指针无法为算法提供类型信息,所以需要加入一个中间层Traits,用于提取转化类型信息,间接的为算法提供所需要的类型信息 */
+/* list容器的迭代器 */
+template<class T, class Ref, class Ptr>
+class __list_iterator{
+    typedef _list_iterator<T, Ref, Ptr> self;
+    /* 迭代器为算法提供了一下5种类型信息 */
+    typedef bidirectioal_iterator_tag iterator_category;	/* 迭代器类型 */
+    typedef T 	value_type;									/* 迭代器中的值类型 */
+    typedef Ptr pointer;									/* 迭代器指针类型 */
+    typedef Ref reference;									/* 迭代器的引用类型 */
+    typedef ptrdiff_t difference_type;						/* 存储迭代器元素个数的类型 */
+	...
+}
+/* 算法像一下这种方式从类类型迭代器中获取所需类型信息 */
+template<typename I>
+inline void algorithm(I first, I last)
+{
+    ...
+    I::iterator_category	/* 获取迭代器中的类型信息 */
+    I::value_type			/* 获取迭代器中的值类型 */
+    I::pointer				/* 获取迭代器中指针类型 */
+    I::reference			/* 获取迭代器中的引用类型 */
+    I::difference_type		/* 获取迭代器中存储迭代器元素个数的类型*/
+    ...
+}
+
+/* iterator_traits中间层,用于分离类类型迭代器和非类类型迭代器 */
+template<class I>
+struct literator_traits{	/* 获取类类型迭代器信息 */
+    typedef typename I::iterator_category iterator_category;
+    typedef typename I::value_type value_type;
+    typedef typename I::difference_type difference_type;
+    typedef typename I::pointer pointer;
+    typedef typename I::refernce reference;
+}
+template<class T>
+struct literator_traits<T*>{	/* 获取非类类型迭代器信息 */
+    typedef random_access_iterator_tag iterator_category
+    typedef T 			value_type;
+    typedef ptrdiff_t 	difference_type;
+    typedef T* 			pointer;
+    typedef T&			reference
+}    
+template<class T>
+struct literator_traits<const T*>{	/* 获取非类类型迭代器信息 */
+    typedef random_access_iterator_tag iterator_category
+    typedef T 			value_type;		/* 类型是用来声明变量的,所以此处是T,而不是const T */
+    typedef ptrdiff_t 	difference_type;
+    typedef T* 			pointer;
+    typedef T&			reference;
+}  
+/* 算法可以通过中间层获取类型信息,而无需关注迭代器本身 */
+template<typename I, ...>
+void algorithm(...){
+    typename iterator_traits<I>::value_type v1;
+}
+```
+
+**容器vector：**
+
+```c++
+/* vector容器其本质是一个数组,迭代器是一个指针,GCC2.9Vector部分实现源码如下 */
+template<class T， calss Alloc=alloc>
+class vector {
+public:
+    typedef T			 	value_type;
+    typedef value_type* 	iterator;		/* vector的迭代器类型是一个指针 */
+    typedef value_type& 	reference;
+    typedef size_t			size_type;
+protected:
+    iterator start;			/* 指向数组的起始地址的指针 */
+    iterator finish;		/* 指向数组最后一个存储元素的下一个地址的指针 */
+    iterator end_of_storage;/* 指向数组末尾的下一个元素的地址 */
+public:
+    iterator begin() { return start; }
+    iterator end() { return finish; }
+    size_type size() const { return size_type(end() - begin()); }
+    siee_type capacity() const { return size_type(end_of_storage-begin()); }
+    bool empty() const { return begin() == end(); }
+    reference operator[](size_type n) { return *(begin()+n); }
+    reference front() { return *begin(); }
+    reference back() { return *(end()-1); }
+    void push_back(const T& x) {
+        if(finish != end_of_storage){ /* 还有备用存储空间 */
+            construct(finish, x);	  /* 将新数据添加到尾部 */
+            ++finish;				  /* 更新finish指针 */
+        }else{						  /* 没有备用空间,需要扩充vector空间 */
+            inser_aux(end(), x);
+        }
+    }
+    void insert_aux(iterator position, const T& x);   /* 辅助函数,还可能被insert()函数调用 */
+    ...
+};
+
+template<class T， class Alloc>
+void vector<T,Alloc>::insert_aux(iterator position, const T& x)
+{
+    if(finish != end_of_storage){ /* vector还有备用存储空间 */
+        construct(finish, *(finish-1));		/* 为insert()函数准备 */
+        ++finish;
+        T x_copy = x;
+        copy_backward(position, finish-2, finish-1);
+        *position = x_copy;
+    }else{	/* 备用空间已使用完,需要扩充空间 */
+        const size_type old_size = size();
+        /* 原大小为0,分配1,否则分配为原来的两倍 */
+        const size_type len = old_size != 0?2*old_size : 1; 
+        
+        iterator new_start = data_allocator::allocate(len);	 /* 使用分配器分配新内存 */
+        iterator new_finish = new_start;
+        try{
+            /* 将原vector中的数据拷贝到新的vector内存中 */
+            new_finish = uninitialized_copy(start, position,new_start);
+            construct(new_finish, x);	/* 写入要插入或push_back进vector的新的元素值 */
+            ++new_finish;
+            /* 插入还需要拷贝后半段数据进新vector */
+            new_finish = uninitialized_copy(position,finish,new_start);
+        }catch(...){
+            destory(new_start, new_finish);
+            data_allocator::deallocate(new_start, len);
+            throw;
+        }
+        destory(begin(), end());/* 析构原来的vector内存 */
+        deallocate();
+        /* 调整迭代器指针,指向新的内存 */
+        start = new_start;
+        finish = new_finish;
+        end_of_storage = new_start+len;
+    }
+}
+
+```
 
