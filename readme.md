@@ -1172,3 +1172,17 @@ void vector<T,Alloc>::insert_aux(iterator position, const T& x)
 
 ```
 
+**typedef语法细节：**
+
+```c++
+int a[100];			//ok
+int[100] b;			//fail
+typedef int T[100];
+T c;				//T类型为int[100]
+```
+
+**容器array:**
+
+```c++
+```
+
