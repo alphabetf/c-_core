@@ -1184,5 +1184,212 @@ T c;				//T类型为int[100]
 **容器array:**
 
 ```c++
+template<typename _Tp, std::size_t _Nm>  /* GCC2.9部分源码实现 */
+struct array
+{
+    typedef _Tp 			value_type;
+    typedef _Tp*			pointer;
+    typedef value_type* 	iterator;	/* 迭代器是指针 */
+    
+    /* 内部维护一个数组 */
+    value_type _M_instance[_Nm ? _Nm : 1];
+    
+    iterator begin() { return iterator(&_M_instance[0]); }
+    iterator end() { return iterator(&_M_instance[_Nm]); }
+    ...
+}
+/* 使用 */
+array<int, 10> myarray;
+auto ite = myarray.begin();
+ite +=3;
+cout << *ite;
+```
+
+**容器deque:**
+
+```c++
+/* GCC2.9源码部分实现 */
+/* BufSize是指每一个buffer所能存储的元素个数,其分配规则是,
+   如果BufSize有指定大小,则使用指定大小
+   如果单个元素大小超过512字节,则BufSize=1,即一个buffer只存储一个元素
+   如果单个元素大小小于512字节,则BufSize=512/单个元素大小 */
+inline size_t __deque_buf_size(size_t n, size_t sz)
+{
+    return n != 0 ? n : (sz<512?size_t(512/sz):size_t(1));
+}
+/* deque内部存储结构:存在一个控制中心map,其实是一个vector数组容器,数据存储在vector中间,方便从两头扩展新的数据,vector中存储的数据是一个个指针,依次指向各个buffer存储块首地址,deque维护着两个迭代器，start和finish这两个迭代器里的node指针分别指向map控制中心vector中的第一个元素的地址和最后一个元素的下一个元素地址,两个迭代器里的first,last和cur指针,分别第一个和最后一个buffer存储块的首地址和最后一个元素的下一个地址，cur则指向第一个和最后一个元素的地址 */
+template<class T, class Alloc=alloc, size_t BufSize=0 >
+class deque{
+public:
+    typedef T value_type;
+    typedef __deque_iterator<T, T&, T*, BufSize> iterator;
+protected:
+    typedef pointer* map_pointer;		/* pointer*是T** 类型 */
+protected:
+    iterator 	start;		/* 一个deque维护着两个迭代器 */
+    iterator 	finish;	
+    map_pointer map;
+    size_type 	map_size;
+public:
+    iterator begin() { return start; }
+    iterator end() { return finish; }
+    size_type size() const { return finish-start; }
+    reference operator[](size_type n) { return start[difference_type(n)]; }
+    reference front() { return *start; }
+    reference back() { iterator tmp = finish; --tmp; return *tmp; }
+    size_type size() const { return finish - start; }
+    bool empty() const { return finish == start; }
+    iterator insert(iterator position, const value_type& x){ /* 在position处插入一个元素x */
+        if(position.cur == start.cur){	/* 插入点就在deque的最前端 */
+            push_front(x);
+            return start;
+        }else if(position.cur == finish.cur){ /* 插入点在deque的最尾端 */
+            push_back(x);
+            /* finish中的node指针指向控制中心vector中最后一个元素的下一个元素地址 */
+            iterator tmp = finish; 
+            --tmp;	/* 指向最后一个元素 */
+            return tmp;  /* 返回最后一个元素的迭代器 */
+        }else{
+            return insert_aux(position,x)	/* 调用辅助函数完成插入动作 */
+        }
+    }
+    ...
+};
+
+/* 插入辅助函数 */
+template <class T, class Alloc, size_t BufSize>
+typename deque<T, Alloc, BufSize>::iterator 
+deque<T, Alloc, BufSize>::insert_aux(iterator pos, const value_type& x){
+    difference_type index = pos -start;	/* 判断安插点是处在中间偏左还是偏右 */
+    value_type x_copy = x;	
+    if(index < size()/2){	/* 安插点之前的元素个数较少 */
+        push_front(front());
+        ...
+        copy(front2,pos1,front1); /* 迁移元素 */
+    }else{
+        push_back(back());
+        ...
+        copy_backward(pos,back2,back1);
+    }
+    *pos = x_copy;	/* 插入元素 */
+    return pos;
+}
+
+/* deque容器的迭代器 */
+template<class T， class Ref, class Ptr, size_t BufSize>
+struct __deque_iterator{
+    typedef random_access_iterator_tag iterator_category; /* 获取迭代器中的类型信息 */
+    typedef T	value_type;								  /* 获取迭代器中的值类型 */
+    typedef Ptr pointer;								  /* 获取迭代器中的指针类型 */
+    typedef Ref reference;								  /* 获取迭代器中的引用类型 */
+    typedef ptrdiff_t difference_type;			/* 获取迭代器中存储迭代器元素个数的类型 */
+    typedef size_t size_type;	
+    typedef T** map_pointer;
+    typedef __deque_iterator self;	
+    
+    T* cur;	 	/* 指向当前要操作的元素 */
+    T* first;	/* 指向当前要操作元素所在buffer的起始地址 */
+    T* last；   /* 指向当前要操作元素所在buffer的最后一个元素的下一个地址 */
+    map_pointer node;	/* 指向当前要操作的buffer的首地址 */
+    ...
+    reference operator*() const { return *cur; }
+    pointer operator->() const { return &(operator*()); }
+    /* 两个迭代器之间的距离,是中间相隔完整的buffer的总长度+两头buffer的元素个数 */
+    difference_type operator-(const self& x) const {
+        return difference_type(buffer_size())*(node-x.node-1)+(cur-first)+(x.last-x.cur);
+    }
+    void set_node(map_pointer new_node){
+        node = new_node; /* 将vector中的下一个元素地址作为新节点 */
+        first = *new_node; /* 将first和last指针指向新的buffer区 */
+        last = first + difference_type(buffer_size());
+    }
+    self& operator++(){ 	/* 前置++ */
+        ++cur;
+        if(cur == last){	 	/* 已经抵达改buffer区的尾端 */
+            set_node(node+1);   /* 切换到下一个buffer */
+            cur = first;
+        }
+        return *this;
+    }
+    self operator++(int){  /* 后置++ */
+        self tmp = *this;
+        ++*this;
+        return tmp;
+    }
+    self& operator--() {	/* 前置-- */
+        if(cur == first){
+            set_node(node-1); /* 切换到前一个buffer */
+            cur = last;
+        }
+        --cur;	/* 取得该buffer末尾的最后一个元素 */
+        return *this;
+    }
+    self operator--(int){	/* 后置-- */
+        self tmp = *this;
+        --*this;
+        return tmp;
+    }
+    self& operator+=(difference_type n){
+        difference_type offset = n + ( cur - first);
+        if(offset >= 0 && offset < difference_type(buffer_size())){
+             cur += n;	/* 在同一个buffer中移动 */
+        }else{	/* 在不同的buffer中移动 */
+            difference_type node_offset = 
+            	 offset > 0 ? offset/difference_type(buffer_size()):
+            				 -difference_type((-offset-1)/buffer_size()) -1;
+            set_node(node + node_offset);	/* 切换至正确的buffer区 */
+            /* 切换至正确的元素 */
+            cur = first+(offset-node_offset*difference_type(buffer_size())); 
+        }
+        return *this;
+    }
+    self operator+(difference_type n) const {
+        self tmp = *this;
+        return tmp += n;
+    }
+    self& operator-=(difference_type n) { return *this += -n; }
+    self operator-(difference_type n) const { self tmp = *this; return tmp -= n; }
+    reference operator[](difference_type n) const { return *(*this + n); }
+};
+```
+
+**queue容器:**
+
+```c++
+/* 只是对deque容器的一种封装,内部默认维护着一个deque容器 */
+template<class T, classn Sequence=deque<T>>  /* queue没有迭代器 */
+class queue{
+public:
+    typedef typename Sequence::value_type value_type;
+    typedef typename Sequence::size_type size_type;
+    typedef typename Sequence::reference reference;
+    typedef typename Sequence::const_reference const_reference;
+protected:
+    Sequence c;	/* 内部默认维护这一个deque容器 */
+public:
+    bool empty() const { return c.empty(); }
+    size_type size() const {return c.size();}
+    ...
+}
+```
+
+**stack容器：**
+
+```c++
+/* 只是对deque容器的一种封装,内部默认维护着一个deque容器 */
+template<class T, classn Sequence=deque<T>>  /* stack没有迭代器 */
+class stack{
+public:
+    typedef typename Sequence::value_type value_type;
+    typedef typename Sequence::size_type size_type;
+    typedef typename Sequence::reference reference;
+    typedef typename Sequence::const_reference const_reference;
+protected:
+    Sequence c;	/* 内部默认维护这一个deque容器 */
+public:
+    bool empty() const { return c.empty(); }
+    size_type size() const {return c.size();}
+    ...
+}
 ```
 
