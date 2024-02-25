@@ -1393,3 +1393,170 @@ public:
 }
 ```
 
+**rb_tree容器：**
+
+```c++
+/* 红黑树中存储的Value值是key加data的组合数据包,Value值可以被修改,但这样会破坏红黑树的存储结构
+   红黑树提供两种插入元素的方法:insert_unique(),存在的元素不插入,和insert_equal(),存在的元素,可重复    插入 */
+template <class key, 		/* 存储的Key值 */
+    	  class Value,  	/* key加data的组合 */
+          class KeyOfValue,	/* 如何通过一个value得到一个key */
+          class Compare,	/* 如何对key进行比较 */
+          class Alloc=alloc>
+class rb_tree{
+protected:
+    typedef __rb_tree_node<Value> rb_tree_node;
+    ...
+public:
+    typedef rb_tree_node* link_type;
+    ...
+protected:
+    size_type node_count;	/* 记录着rb_tree的大小 */
+    link_type header;		/* 纪律着红黑树的头 */
+    Compare key_compare;	/* 比较key的仿函数 */
+    ...
+}
+
+template<class Arg, class Result>
+struct unary_function{
+    typedef Arg 	argument_type
+    typedef Result 	result_type;
+}
+template<class T>
+struct identity:public unary_function<T,T>{
+    const T& operator()(const T&  x) const { return x; }	
+}
+
+template<class Arg1, class Arg2, class Result>
+struct binary_function{
+   typedef Arg1 first_argument_type;
+   typedef Arg2 second_argument_type;
+   typedef Result result_type;
+}
+template<class T>
+struct less:public binary_function<T,T,bool>{
+    bool operator()(const T& x, const T& y) const{ return x<y; }
+}
+/* 红黑树的使用 */
+rb_tree<int, int, identity<int>, less<int>> itree;
+cout << itree.empty() << endl;		// 1
+cout << itree.size() << endl;		// 0
+itree.insert_unique(3);	/* 插入的值是Value,Value是key和data的组合 */
+itree.insert_equal(5);
+```
+
+**set,multiset容器:**
+
+```c++
+/* set和multiset底层存储结构使用的红黑树,通过使用const_iterator来禁止对元素的修改
+   set使用的是insert_unique(),来实现元素的独一无二
+   multiset使用的是insert_equal(),来实现元素的重复 */
+template<class Key,	/* key+data组合成Value */
+		 class Compare = lsee<key>,
+	     class Alloc = alloc>
+class set{
+public:
+    typedef Key key_type;
+    typedef Key value_type;
+    typedef Compare key_compare;
+    typedef compare value_compare;
+private:
+    typedef rb_tree<key_type,value_type,identity<value_type>,key_compare,Alloc> rep_type;
+    rep_type t;	/* set容器内部维护着一个红黑树 */
+public:
+    typedef typename rep_type::const_iterator iterator;	/* set使用的是const迭代器 */
+    ...
+    /* set的所有操作都是通过红黑树来完成的,所有set更像是一个adapter */
+};
+```
+
+**map，multimap容器:**
+
+```c++
+/* map和multimap也是以红黑树为底部存储结构,同过将key设为const属性来禁止修改key,但可以修改data
+   map使用的是insert_unique(),来实现元素的独一无二,operator[]是map独有的操作
+   multimap使用的是insert_equal(),来实现元素的重复 */
+template<class Key,	/* key */
+		 class T,	/* data */
+		 class Compare = less<key>, /* 如何比较key值 */
+         class Alloc=alloc>
+class map{
+public:
+    typedef Key key_type;
+    typedef T 	data_type;
+    typedef T   mapped_type;
+    typedef pair<const Key, T> value_type; /* 通过设置Key为const属性,来禁止修改Key */
+    typedef Compare key_compare;
+private:
+    typedef 
+        rb_tree<key_type,value_type,select1st<value_type>,key_compare,Alloc> rep_type;
+    rep_type t;		/* 内部维护一个红黑树 */
+public:
+    typedef typename rep_type::iterator iterator;	/* 使用红黑树的普通迭代器 */
+    ...
+}
+/* 使用 */
+map<int, string,less<int>, alloc> imap;
+```
+
+**hashtable容器：**
+
+```c++
+/* 底层实现原理:假设我们现在有一个M大小的数组容器,还要一个hashcode()生成算法,任何数据经过hashcode()算法,都会生成一个唯一的哈希码H,对H%M即可得到该数据要存储的数组下标,当H足够多变时,则H%M可能得相同的下标,即发生数据碰撞，所以这个数组中应该存储的是一个个链表(一堆篮子),发生碰撞时将数据挂入相同链表中即可(放入同一个篮子),但是依然存储单一链表过长而降低效率的可能,所以规定,当哈希表中存储的元素"总数"大于数组元素个数(篮子总数),则需要扩充数组大小(增加篮子总数),(GCC2.9将数组扩充到原来大小的2倍附近的质数),所以此处的数组应该是一个vector容器,扩充后应该对哈希表内部所有元素进行重新计算和存放 */
+template<class Value>
+struct __hashtable_node{
+    __hashtable_node* next; /* 这里是一个单向链表 */
+    Value val;				/* 存储着数据 */
+}
+template<class Value,class Key,class HashFcn,
+		 class ExtractKey,class EqualKey,class Alloc=alloc>
+struct __hashtable_iterator{
+    ...
+    node* cur;		/* 指向当前操作的链表中的结点 */
+    hashtable *ht;	/* 指向整个哈希表的vector容器 */
+}
+template<class Value, 		/* 要存入哈希表的数据 */
+		 class Key, 		/* 哈希表是根据key值来进行元素排列的 */
+		 class HashFcn，	   /* hashcode生成算法 */
+         class ExtractKey,  /* 如何通过Value值得到key值 */
+		 class EqualKey,	/* 如何判断连个Key值相等 */
+         class Alloc=alloc>
+class hashtbale{
+public:
+    typedef HashFcn hasher;
+    typedef EqualKey key_equal;
+    typedef size_t size_type;
+private:
+    hasher hash;
+    key_equal equals;
+    ExtractKey get_key;
+    
+    typedef __hashtable_node<Value> node;	/* 链表节点 */
+    vector<node*, Alloc>buckets;	/* 内部维护着一个vector容器,容器中存储的是一个个链表 */
+    size_type num_elements;			/* 记录着哈希表中的元素总数 */
+public:
+    size_type bucket_count() const { return buckets.size(); }
+    ...
+}
+/* 使用 */
+hashtable<const char*,
+    	  const char*,
+     	  hash<const char*>,
+    	  identity<const char*>,
+		  eqstr,alloc> ht(50,hash<const char*>(),eqstr())); /* 构造函数 */
+ht.insert_unique("hello");
+
+struct eqstr{
+    bool operator()(const char* s1, const char* s2) const { return strcmp(s1,s2)==0; }
+}
+inline size_t __st1_hash_string(cosnt char* s){ 	/* hashcode生成算法 */
+    unsigned long h = 0;
+    for(;*s;++s) { h=5*h+*s;}
+    return size_t(h);
+}
+template<class key>			/* 模板的部分特化 */
+struct hash<const char*>{
+    size_t operator()(const char* s) const { return __st1_hash_string(s); }
+}
+```
+
