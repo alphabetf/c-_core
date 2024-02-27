@@ -609,11 +609,11 @@ str.print(); /* print()不是const成员函数,所以此处编译会报错 */
 /* 影响范围较大,不建议全局重载,这些重载函数会由编译器来传入参数并调用 */
 inline void* operator new(size_t size){
     cout << "global new()" << endl;
-    return malloc(size;
+    return malloc(size);
 }
 inline void* operator new[](size_t size){
     cout << "global new[]()" << endl;
-    return malloc(size;
+    return malloc(size);
 }
 inline void operator delete(void* ptr)
 {
@@ -658,8 +658,8 @@ operator delete(p);							/* 释放分配的内存 */
 class Foo
 {
 public:
-    void* operator new(size_t);
-    void operator delete(void*,size_t); /* size_t为可选参数,可写可不写,由编译器传入 */
+    void* operator new[](size_t);
+    void operator delete[](void*,size_t); /* size_t为可选参数,可写可不写,由编译器传入 */
     ....
 }
 
@@ -740,7 +740,7 @@ public:
         return malloc(size);
     }
     /* 下面是placement new()的重载 */
-    void* operator new(size_t size, void* start){
+    void* operator new(size_t size, void* start){ 
         return start;
     }
     void* operator new(size_t  size, long extra){
@@ -977,6 +977,83 @@ alloc2.deallocate(p,1);						/* 归还分配器分配的内存 */
 __gun_cxx::bitmap_allocator<int> alloc2;	/* 创建分配器 */
 p = alloc2.allocate(1);						/* 直接使用分配器分配内存 */
 alloc2.deallocate(p,1);						/* 归还分配器分配的内存 */
+```
+
+**实现一个自定义的allocator:**
+
+```c++
+/* allocator标准接口,需要满足一下条件：
+   需提供一组typedef: allocator::value_type;
+   					allocator::pointer;
+   					allocator::const_pointer;
+   					allocator::reference;
+   					allocator::const_reference;
+   					allocator::size_type;
+   					allcoator::difference_type；
+   allocator::rebind:allocator内嵌模板,需要定义other成员
+   allocator::allocator():构造函数
+   allocator::allocator(const allocator&):拷贝构造函数
+   template<typename T> allocator::allocator(const allocator<T>&):泛化的拷贝构造函数
+   allocator::~allocator():析构函数
+   pointer allocator::address(reference x) const:返回对象地址allocator.address(x)相当于&x
+   pointer allocator::allocate(size_type n, const void*=0):分配内存空间
+   void allocator::deallocator(pointer p,size_type n):释放分配的空间
+   size_type allocator::max_size() const:可分配的最大内存空间
+   void allocator::construct(pointer p, const T& x):
+   					在指定地址处分配内存,相当于new((const void*)P) T(x);
+   void allocator::destroy(pointer p):释放指定地址的内存,相当于p->~T();
+*/
+template <typename T>
+struct MyAllocator{
+    typedef T 			value_type;
+    typedef T* 			pointer;
+    typedef const T*	const_pointer
+    typedef T&;			reference;
+    typedef const T&	const_reference;
+    typedef size_t		size_type;
+    typedef int			difference_type;
+    template<typename U>	/* 内嵌的rebind模板 */
+    struct rebind{
+        typedef MyAllocator<U> other;
+    }
+    /* 构造函数 */
+    MyAllocator(){ ... }
+    MyAllocator(MyAllocator<T> const&){ ... }
+    pointer allocate(size_type n, const void* p = 0){	/* 分配n个T类型的内存 */
+        T* buffer = (T*)malloc((size_t)(n*sizeof(T)));
+        if(buffer == NULL){ /* 错误处理 */
+            ...
+        }
+        return buffer;
+    }
+    void deallocate(pointer p,size_type n){
+        if(p != NULL){
+            free(p);
+        }
+    }
+    /* placement construct函数 */
+    void construct(pointer p, const T& value){
+        new(p) T(value);	/* 需要重载placement new,在地址处构造T */
+    }
+    /* placement destroy */
+    void destroy(pointer p, size_type n){
+        p->~T();	/* 调用T的析构函数 */
+    }
+    /* 最大可分配内存 */
+    size_type max_size() const {
+        return size_type(UINT_MAX/sizeof(T)));
+    }
+    pointer address(reference x){
+        return (pointer)&x;
+    }
+    const_pointer const_address(const_reference x){
+        return (const_pointer)&x;
+    }
+ }
+/* 使用 */
+int elements[] = {1,2,3,4,5};
+const int n = sizeof(elements)/sizeof(int);
+vector<int,MyAllocator<int>> myvector(elements,elements+n);
 ```
 
 **Iterator迭代器：**
@@ -1558,5 +1635,41 @@ template<class key>			/* 模板的部分特化 */
 struct hash<const char*>{
     size_t operator()(const char* s) const { return __st1_hash_string(s); }
 }
+```
+
+**C++标准库的算法:函数模板**
+
+```c++
+template<typename iterator>
+Algorithm(iterator itr1, iterator itr2)	 /* c++标准库算法的形式 */
+{
+    ...
+}
+```
+
+**iterator的种类：五种iterator category**
+
+```c++
+/* 除了输出迭代器,其他迭代器都是相互继承的 */
+struct Input_iterator_tag{ ... };
+struct output_itertaor_tag{ ... };
+/* 单向迭代器,如:单向链表 */
+struct forward_iterator_tag:public input_iterator_tag { ... }; 
+/* 双向迭代器,如：双向链表 */
+struct bidirectional_iterator_tag:public forward_iterator_tag{ ... };
+/* 随机访问迭代器 */
+struct random_access_iterator_tag:public bidirectional_iterator_tag{ ... }	
+/* 使用typeid可获取迭代器种类 */
+#include <typeinfo>	//typeid
+
+iterator itr;
+cout << typeid(itr).name(); << endl;  /* 取得迭代器的种类 */
+```
+
+**迭代器种类对算法效率的影响：**
+
+```c++
+template<class Inputiterator>
+
 ```
 
