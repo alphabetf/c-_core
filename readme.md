@@ -1669,7 +1669,92 @@ cout << typeid(itr).name(); << endl;  /* 取得迭代器的种类 */
 **迭代器种类对算法效率的影响：**
 
 ```c++
-template<class Inputiterator>
+/* 非随机访问迭代器的重载版本 */
+template<class InputIterator>
+inline iterator_traits<InputIterator>::difference_type
+__distance(InputIteratorertor first, InputIterator last, Input_iterator_tag){
+    ierator_traits<InputIterator>::difference_type n = 0;
+    while(first != last){	/* 依次遍历每一个节点 */
+        ++first;
+        ++n;
+    }
+    return n;
+}
+/* 随机访问迭代器版本 */
+template<class RandomAccessIterator>
+inline iterator_traits<RandomAccessIterator>::difference_type
+__distance(RandomAccessIterator first,RandomAccessIterator 					                        last,random_access_iterator_tag){
+    return last-first;
+}
+/* 计算两个迭代器之间的距离 */
+template<class InputIterator> /* 除了输出迭代器,其他迭代器都继承自InputIterator */
+inline iterator_traits<InputIterator>::difference_type
+distance(InputIterator first, InputIterator last){
+    typedef typename iterator_traits<InputIterator>::iterator_category category;
+    return __distance(first,last,category())  /* 迭代器种类临时对象 */
+}
+```
 
+```c++
+template<class InputIterator, class Distance> 
+inline void __advance(InputIterator& i, Distance n, input_iterator_tag){ 
+    while(n--){ ++i; } /* 迭代器只能往前走 */
+}    
+template<class BidirectionalIterator, class Distance>
+inline void __advance(BidirectionalIterator& i, Distance n, bidirectional_iterator_tag){
+    if(n > 0){	/* 双向迭代器,即可以往前走也可以往后走 */
+        while(n--) { ++i; }
+    }else{
+        while(n++) { --i; }
+    }
+}
+template<class RandomAccessIterator, class Distance>
+inline void __advance(RandomAccessIterator& i, Distance n, random_access_iterator_tag){
+    i += n;	/* 随机访问迭代器,随意操作 */
+}
+
+template <class itertaor>
+inline typename iterator_traits<iterator>::iterator_category
+iterator_category(const iterator&){ /* 编译器自动推导参数类型 */
+    typedef typename iterator_traits<Iterator>::itertaor_category category;
+    return category(); /* 返回临时对象 */
+}
+/* 将迭代器往前偏移n */
+template<class InputItertaor, class Distance>
+inline void advance(InputItertaor& i, Distance n){
+    __advance(i,n,iterator_category(i));
+}
+```
+
+**常见算法实现:**
+
+```c++
+/* 算法accumulate */
+template<class InputIterator, class T>
+T accumulate(Inputiterator first, Inputiterator last, T init){
+    for(;first != last; ++ first){
+        init = init + *first;
+    }
+    return init;
+}
+/* 算法accumulate,带仿函数版本 */
+template<class InputIterator,class T, class BinaryOperation>
+T accumulate(InputIterator first, InputIterator last, T init, BinaryOperation binary_op){
+    for(;first != last; ++first){
+        init = binary_op(init, *first);
+    }
+    return init;
+}
+```
+
+```c++
+/* 算法for_each */
+template<class InputIterator, class Function>
+Function for_each(InputIterator first,InputIterator last, Function F){
+    for(;first != last; ++first){
+        f(*first);
+    }
+    return f;
+}
 ```
 
