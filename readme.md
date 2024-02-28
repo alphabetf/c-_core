@@ -1758,3 +1758,81 @@ Function for_each(InputIterator first,InputIterator last, Function F){
 }
 ```
 
+```c++
+/* 算法replace,replace_if,replace_copy */
+template<class ForwardIterator, class T>
+void replace(ForwardIterator first,ForwardIterator last,
+             const T& old_value,const T& new_value){
+    for(;first!=last; ++first){ /* 将所有的old_value替换为new_value */
+        if(*first == old_value){
+            *first = new_value;
+        }
+    }
+}
+template<class InputIterator,class OutputIterator,class T>
+OutputIterator replace_copy(InputIterator first,InputIterator last,OutputIterator result, 							  const T& old_value,const T& new_value){
+    for(;first!=last;++first;++result){ 
+        *result = *first==old_value?new_value:*first;
+    }
+    return result;
+}
+template<class ForwardIterator, class Predicate, class T>
+void replace_if(ForwardIterator first,ForwardIterator last,
+                Predicate pred,const T& new_value){
+    for(;first!=last;++first){
+        if(pred(*first)){
+            *first = new_value;
+        }
+    }
+}
+```
+
+```c++
+/* 算法count,count_if */
+template<class InputIterator, class T>
+typename iterator_traits<InputIterator>::difference_type
+count(InputIterator first, InputIterator last, const T& value){
+    for(;first!=last; ++first){
+        if(*first == value){
+			++n;
+        }
+    }
+    return n;
+}
+template<class InputIterator, class Predicate>
+typename iterator_traits<InputIterator>::difference_type
+count_if(InputIterator first, InputIterator last, Predicate pred){
+    for(;first!=last；++first){
+        if(pred(*first)){
+            ++n;
+        }
+    }
+    return n;
+}
+```
+
+```c++
+/* 算法find, find_if */
+template<class InputIterator, class T>
+InputIterator find(InputIterator first, InputIterator last, const T& value){
+    while(first!=last && *first != value){
+        ++first;
+    }
+    return first;  
+}
+template<class InputIterator, class Predicate>
+InputIterator find_if(InputIterator first, InputIterator last, Predicate pred){
+    while(first!=last && !(pred(*first))){
+        ++first;
+    }
+    return first;
+}
+```
+
+```c++
+/* 算法binary_search,调用该算法的前提是容器内的元素排序是一个递减序列 */
+
+```
+
+
+
