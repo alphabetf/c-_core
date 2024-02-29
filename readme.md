@@ -1831,8 +1831,87 @@ InputIterator find_if(InputIterator first, InputIterator last, Predicate pred){
 
 ```c++
 /* 算法binary_search,调用该算法的前提是容器内的元素排序是一个递减序列 */
-
+template<class ForwardIterator, class T>
+bool binary_search(ForwardIterator first,ForwardIterator last，
+                  const T& val){
+    first = std::lower_bound(first,last,val);	/* 查找到第一个小于等于val的值 */
+    return (first!=last && !(val < *first)); 
+}
+/* 在一个递减序列中查找第一个小于等于val的元素 */
+template<class ForwardIterator, class T>
+ForwardIterator lower_bound(ForwardIterator first, ForwardIterator last,
+                            const T& val){
+    ForwardIterator it;
+    iterator_traits<ForwardIterator>::difference_type count, step;
+    count = distance(first,last);
+    while(count > 0){
+        it = first;
+        step = count/2;
+        advance(it,step);
+        if(*it < val){	
+            first = ++it;
+            count -= step+1;
+        }else{
+            count = step;
+        }
+    }
+    return first;
+}
 ```
 
+**仿函数functors：**
 
+```c++
+/* 仿函数 */
+template<class T>
+struct identity:public unary_function<T,T>{
+    const T& operator()(const T& x) const { return x; }
+};
+template<class T1， class T2>
+struct pair{
+    typedef T1 first_type;
+    typedef T2 second_type;
+    
+    T1 first;
+    T2 second;
+    pair():first(T1()),second(T2()){};
+    pair(const T1& a, const T2& b):first(a),second(b){}；
+}
+template<class Pair>
+struct select1st:public unary_function<Pair,typename Pair::first_type>{
+    const typename Pair::first_type& operator()(const Pair& x) const{
+        return x.first;
+    }
+}
+template<class Pair>
+struct select2nd:public unary_function<Pair,typename Pair::second_type>{
+    const typename Pair::second_type& operator()(const Pair& x) const{
+        return x.second;
+    }
+}
+```
+
+**仿函数的可适配（adaptable）:**
+
+```c++
+/* 仿函数如果想被STL的适配器适配,必须继承以下两个类之一,因为STL的适配器需要通过这些继承的类来获取仿函数的参数类型信息,方便定义变量和使用 */
+template<class Arg, class Result> /* 一个传入参数 */
+struct unary_function{
+    typedef Arg 	argument_type;
+   	typedef Result  result_type;
+}
+template<class Arg1, class Arg2, class Result> /* 两个传入参数 */
+struct binary_function{
+    typedef Arg1 	first_argument_type;
+    typedef Arg2 	second_argument_type;
+    typedef Result 	result_type;
+}
+/* 仿函数通过继承将参数类型信息传递给继承的类 */
+template<class T>
+struct less:public binary_function<T,T,bool>{
+    bool operator()(const T& x， const T& y) const {
+        return x < y;
+    }
+};
+```
 
