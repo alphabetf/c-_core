@@ -1906,12 +1906,212 @@ struct binary_function{
     typedef Arg2 	second_argument_type;
     typedef Result 	result_type;
 }
-/* 仿函数通过继承将参数类型信息传递给继承的类 */
+/* 仿函数通过继承的方式,将参数类型信息传递给继承的类,来给STL的适配器使用 */
 template<class T>
 struct less:public binary_function<T,T,bool>{
     bool operator()(const T& x， const T& y) const {
         return x < y;
     }
 };
+```
+
+**容器的适配器：**
+
+```c++
+template<class T,class Sequence=deque<T>>
+class stack{
+public:
+    typedef typename Sequence::value_type value_type;
+    typedef typename Sequence::size_type size_type;
+    typedef typename Sequence::reference reference;
+    typedef typename Sequence::const_reference const_reference;
+protected:
+    Sequence c; /* 内部维护着一个其他容器 */
+public:
+    /* 内部仅仅是对其他容器功能的一个封装 */
+    bool empty() const { return c.empty(); }
+    size_type size() const { return c.size(); }
+    reference top() { return c.back(); }
+    const_reference top() const { return c.back(); }
+    void push(const value_type& x) { c.push_back(x); }
+    void pop() { c.pop_back(); }
+}
+```
+
+**函数的适配器bind2nd:**
+
+```c++
+template<class Operation, class T>
+inline binder2nd<Operation>bind2nd(const Operation& op, const T& x){
+    typedef typename Operation::second_argument_type arg2_type;
+    return binder2nd<Operation>(op,arg2_type(x)); /* 返回一个匿名对象 */
+} 
+template<class Operation>
+class binder2nd:public unary_function<typename Operation::first_argument_type,
+									  typename Operation::result_type>{
+protected:
+    Operation op;	/* 这里相当于创建了一个对象,这里创建对象会调用构造函数 */		
+    typename Operation::second_argument_type value;    /* 将传入的两个参数记录起来 */	   
+public:
+    /* 构造函数 */
+    binder2nd(const Operation& x, const typename Operation::second_argument_type& y)
+        :op(x),value(y){
+            
+        };
+    typename Operation::result_type
+    Operation()(const typename Operation::first_argument_type& x) const{
+        return op(x,value);
+    };
+};
+/* count_if算法 */
+template<class InputIterator, class Predicate>
+typename Iterator_traits<InputIterator>::difference_type 
+count_if(InputIterator first, InputIterator last, Predicate pred){
+    typename iterator_traits<InputIterator>::difference_type n = 0;
+    for(;first !=last){	/* 遍历迭代器 */
+        if(pred(*first)){
+            ++n;
+        }
+    }
+    return n;
+}
+/* 使用 */
+cout<< count_if(vi.begin(), vi.end(),bind2nd(less<int>(),40));
+```
+
+**函数适配器not1:**
+
+```c++
+template<class Predicate>
+inline unart_negate<Predicate> not1(const Predicate& pred){ /* 模板函数 */
+    return unary_negate<Predicate>(pred); /* 返回一个匿名对象 */
+}
+
+template<class Prediacte>
+class unary_negate:public unary_function<typename Predicate::argument_type,bool>{
+protected:
+    Predicate pred;	/* 会调用默认的空构造函数 */
+public:
+    explicit unary_negate(const Predicate& x):pred(x){ /* 拷贝构造函数 */
+        
+    }
+    bool operator()(const typename Predicate::argument_type& x) const {
+        return !pred(x); /* 适配器仅仅是起到装饰作用,指示对其他类功能的一种修饰 */
+    }
+}
+/* 使用 */
+cout<< count_if(vi.begin(), vi.end(),not1(bind2nd(less<int>(),40));
+```
+
+**迭代器适配器:**
+
+```c++
+template<class Iterator>
+class reverse_iterator{ /* 仅仅只是对正向迭代器功能的一种装饰 */
+protected:
+    Iterator current;	/* 维护着一个正向迭代器 */
+public:
+    typedef typename iterator_traits<Iterator>::iterator_category iterator_category;
+    typedef typename iterator_traits<Iterator>::value_type value_type;
+    typedef Iterator iterator_type;				/* 代表正向迭代器 */
+    typedef reverse_iterator<Iterator> self;	/* 代表逆向迭代器 */
+public:
+    explicit reverse_iterator(iterator_type x):current(x){ }
+    reverse_iterator(const self& x):current(x.current){ }
+    iterator_type base() const { return current; } 
+    /* 对正向迭代器的反向操作 */
+    reference operator*() const { Iterator tmp = current; return *--tmp }
+    pointer operator->() const { return &(operator*()); }
+    self& operator++(){ --current; return *this; }
+    self& operator--(){ ++current; return *this; }
+    self operator+(difference_type n) const { return self(current -n); }
+    self operator-(difference_type n) const { return self(current +n); }
+}
+/* 使用 */
+reverse_iterator rbegin(){ return reverse_iterator(end()); } /* 传入正向迭代器 */
+reverse_iterator rbend(){ return reverse_iterator(begin()); } /* 传入正向迭代器 */
+```
+
+```c++
+template<class InputIterator, class OutputIterator>
+OutputIterator copy(InputIterator first,InputIterator last,OutputIterator result){
+    while(first!=last){
+        *result = *first;	/* result这个类可以重载operator=(),改变=操作行为 */
+        ++result; ++first;
+    }
+}
+template<class Container>
+class insert_iterator{	/* 这个迭代器适配器改变迭代器的赋值行为 */
+protected:
+    Container* container;
+    typename Container::iterator ite;
+public:
+    typedef output_iterator_tag iterator_category;
+    /* 构造函数 */
+    insert_iterator(Container& x,typename Container::iterator):container(&x),iter(i){ }
+    ...
+    insert_iterator<Container>& operator=(const typename Container::value_type& val){
+        iter = container->insert(iter,value); /* 将容器的赋值操作改为插入操作 */
+        ++iter;
+        return *this;
+    } 
+};
+/* 使用 */
+list<int>foo,bar;
+for(int i = 1; i <= 5; i++){
+    foo.push_back(i);
+    bar.push_back(i*10);  
+}
+list<int>::iterator it = foo.begin();
+copy(bar.begin(),bar.end(),insert(foo,it)); /* 改变了copy的行为 */
+```
+
+```c++
+template<class InputIterator, class OutputIterator>
+OutputIterator copy(InputIterator first,InputIterator last,OutputIterator result){
+    while(first!=last){
+        *result = *first;	/* result这个类可以重载operator=(),改变=操作行为 */
+        ++result; ++first;
+    }
+}
+template<class T, class charT = char, class traits=char_traits<charT>>
+class ostream_iterator:public iterator<output_itertaor_tag,void,void,void,void>{
+    basic_osteram<charT,traits>* out_stream; /* 使用的输出流 */
+    const charT* delim;			/* 每次输出的分隔符 */
+public:
+    typedef charT char_type;
+    typedef traits traits_type;
+    typedef basic_ostream<charT,traits>ostream_type;
+    /* 构造函数 */
+    ostream_iterator(ostream_type& s):out_stream(&s),delim(0){ }
+    ostream_iterator(ostream_type& s, const charT* delimiter)
+        :out_stream(&s),delim(delimiter){ }
+    /* 拷贝构造函数 */
+    ostream_iterator(const ostream_iterator<T,charT,traits>& x)
+        :out_stream(x.out_stream),delim(x.delim){ }
+    ~ostream_iterator(){ }
+    /* 将赋值行为适配到输出到out_stream */
+    ostream_iterator<T,charT,traits>& operator=(const T& value){ 
+        *out_stream << value;
+        if(delim != 0){
+            *out_stream << delim;
+        }
+        return *this;
+    }
+    ostream_iterator<T,charT,traits>& operator*() { return *this; }
+    ostream_iterator<T,charT,traits>& operator++() { return *this; } /* 前置++ */
+    ostream_iterator<T,charT,traits>& operator++(int) { return *this; } /* 后置++ */
+}
+/* 使用 */
+int main(){
+    std::vector<int> myvector;
+    for(int i=1;i<10;i++){
+        myvector.push_back(i*10);
+    }
+    std::ostream_iterator<int> out_it(std::cout,",");
+    std::copy(myvector.begin(),myvector.end(),out_it); 
+    
+    return 0;
+}
 ```
 
