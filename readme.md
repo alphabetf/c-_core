@@ -2039,6 +2039,7 @@ OutputIterator copy(InputIterator first,InputIterator last,OutputIterator result
         *result = *first;	/* result这个类可以重载operator=(),改变=操作行为 */
         ++result; ++first;
     }
+    return result;
 }
 template<class Container>
 class insert_iterator{	/* 这个迭代器适配器改变迭代器的赋值行为 */
@@ -2073,6 +2074,7 @@ OutputIterator copy(InputIterator first,InputIterator last,OutputIterator result
         *result = *first;	/* result这个类可以重载operator=(),改变=操作行为 */
         ++result; ++first;
     }
+    return result;
 }
 template<class T, class charT = char, class traits=char_traits<charT>>
 class ostream_iterator:public iterator<output_itertaor_tag,void,void,void,void>{
@@ -2113,5 +2115,198 @@ int main(){
     
     return 0;
 }
+```
+
+```c++
+template<class InputIterator, class OutputIterator>
+OutputIterator copy(InputIterator first,InputIterator last,OutputIterator result){
+    while(first!=last){
+        *result = *first;	/* *first操作重载版本operator*() */
+        ++result; 			
+        ++first;			/* 完成一次读操作 */
+    }
+    return result;
+}
+template<class T,class charT=char,
+		 class traits=char_traits<charT>,class Distance=ptrdiff_t>
+class istream_iterator:public iterator<input_iterator_tag,T,Distance,const T*,const T&>
+{
+    basic_istream<charT,traits>* in_stream;
+    T value;
+public:
+    typedef charT  char_type;
+    typedef traits traits_type;
+    typedef basic_istream<charT,traits> istream_type;
+    istream_iterator():in_stream(0){}
+    istream_iterator(istream_type& s):in_stream(&s){++*this;} /* ++操作已经产生一次读操作 */
+    istream_iterator(const isteram_iterator<T,charT,traits,Distance>& x)
+        :in_stream(x.in_stream),value(x.value){ }
+    ~istream_iterator(){}
+    const T& operator*() const { return value }
+    const T* operator->() const { return &value }
+    istream_iterator<T,charT,traits,Distance>operator++(){ /* 前置++ */
+        if(in_stream && !(*in_stream >> value)){ /* 已经完成一次读操作 */
+            ins_stream=0；
+        }
+        return *this;
+    }
+    istream_iterator<T,charT,traits,Distance> operator++(int){ /* 后置++ */
+        istream_iterator<T,charT,traits,Distance> tmp = *this;
+        ++*this;
+        return tmp;
+    }
+}
+/* 使用 */
+istream_iterator<int>iit(cin),eos;
+copy(ite,eos,inserter(c,c.begin()));
+```
+
+**不定模板参数的使用:**
+
+```c++
+/* 利用不定模板参数实现万用的HashCode函数 */
+class CustomerHash{
+public:
+    std::size_t operator()(const Customer& c) const{
+        return hash_val(c.fname,c.lname,c.no);
+    }
+private:
+    string fname;
+    string lname;
+    long no;
+}
+/* 不定参数模板函数也是可以重载的 */
+template<typename... Type>
+inline size_t hash_val(const Type&... arg){
+    size_t seed = 0;
+    hash_val(seed,arg...);
+    return seed; /* seed就是最终生成的hashcode */
+}
+template<typename T，typename... Type>
+inline void hash_val(size_t& seed, const T& val, const Type&... arg){
+    hash_combine(seed,val); /* 逐一取出模板参数并计算hashcode */
+    hash_val(seed,arg...);
+}
+template<typename T>
+inline void hash_val(size_t& seed,const T& val){
+    hash_combine(seed,val);
+}
+template<typename T>
+inline void hash_combine(size_t& seed, const T& val){
+    seed ^=std::hash<T>()(val)+0x9e3779b9+(seed<<6)+(seed>>2);
+}
+```
+
+**tuple任意个数类型组合：**
+
+```c++
+/* 不定模板参数+自我递归完成可容纳任意类型任意数量组合的类tuple */
+template<> class tuple<>{ }; 				/* 空模板参数的特化版本,用于递归结束条件 */
+template<typename Head,typename... Tail>
+class tuple<Head,Tail...>:private tuple<Tail...>  /* 通过继承完成不定模板参数的分离 */
+{
+   	typedef tuple<Tail..>inherited;
+public:
+    tuple(){ }
+    tuple(Head v,Tail... vtail):m_head(v),inherited(vtail...){ } /* 不断的自我递归 */
+    
+    typename Haed::type head(){ return m_head; }
+    inherited& tail(){ return *this; }
+protected:
+    Head m_head; /* 被分离的参数 */
+}
+/* 使用 */
+tuple<int,float,string> t(41,63,"nico");
+t.head() /* 取得41 */
+t.tail() /* 取得41,63,nico这个数据结构的首 */
+t.tail().head() /* 取得6.3 */  
+```
+
+**moveable class:**
+
+```c++
+class MyString{
+public:
+    static size_t DCtor;	/* 默认构造函数调用次数 */
+    static size_t Ctor;		/* 构造函数调用次数 */
+    static size_t CCtor;	/* 拷贝构造函数调用次数 */
+    static size_t CAsgn;	/* 拷贝赋值函数调用次数 */
+    static size_t MCtor;	/* move构造函数 */
+    static size_t MAsgn;	/* move赋值函数 */
+    static size_t Dtor;		/* 析构函数 */
+private:
+    char* _data;
+    size_t _len;
+    void _init_data(const char* s){
+        _data = new char[_len+1];
+        memcpy(_data,s,_len);
+        _data[_len] = '\0';
+public:
+     /* 默认构造函数 */
+     MyString():_data(NULL),_len(0){
+         ++DCtor;
+     }
+     /* 普通构造函数 */
+     MyString(const char* p):_len(strlen(p)){
+         ++Ctor;
+         _init_data(p);
+     }
+     /* 拷贝构造函数 */
+     MyString(const MyString& str):_len(str._len){
+         ++CCtor;
+         _init_data(str._data);
+     }
+     /* 拷贝赋值函数 */
+     MyString& operator=(const MyString& str){
+         ++CAsgn;
+         if(this != &str){
+             if(_data) delete _data;
+             _len = str._len;
+             _init_data(str._data);	/* 深拷贝 */
+         }else{
+             
+         }
+         return *this;
+     }
+     /* move构造函数 */
+     MyString(MyString&& str) noexcept:_data(str._data),_len(str._len){
+         ++MCtor;	/* 需要确保传入的对象不在会被使用 */
+         str._len = 0;
+         str._data = NULL;
+     }
+     /* move赋值函数 */
+     MyString& operator=(MyString&& str) noexcept {
+         ++MAsgn;
+         if(this != &str){ /* 需要确保传入的对象不在会被使用 */
+             if(_data) delete _data;
+             _len = str._len;
+             _data = str._data;
+             str.len = 0;
+             str._data = null;
+		 }
+         return *this;
+     }
+     /* 虚析构函数 */
+     virtual ~MyString(){
+         if(_data){
+             delete _data;
+         }
+     }
+     bool operator<(const MyString& rhs) const{
+         return std::string(this->_data) < std::string(rhs._data);
+     }
+     bool operator==(const MyString& rhs) const {
+          return std::string(this->_data) = std::string(rhs._data);
+     }
+};
+size_t MyString::DCtor = 0;
+size_t MyString::Ctor = 0;
+size_t MyString::CCtor = 0;    
+size_t MyString::CAsgn = 0;
+size_t MyString::MCtor = 0;
+size_t MyString::MAsgn = 0;
+size_t MyString::Dtor = 0;
+/* 使用 */
+std::move(c1)	/* 调用move构造函数 */
 ```
 
