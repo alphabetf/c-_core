@@ -2310,3 +2310,327 @@ size_t MyString::Dtor = 0;
 std::move(c1)	/* 调用move构造函数 */
 ```
 
+#### 设计模式:
+
+**面向对象设计原则:**
+
+​		依赖倒置原则: 高层**稳定**模块,不应该依赖于低层**易变**的模块,且二者皆应该依赖于抽象层(**稳定**)
+
+​								 抽象层(**稳定**)不应该依赖于具体实现(变化),具体实现应该依赖于抽象(稳定)
+
+​		开放封闭原则:对扩展开放,对更改封闭(类模块应该是可扩展(继承),但不可修改)
+
+​		单一职责原则:一个类应该隐含着**一个**引起它变化的原因(变化方向应该隐含着类的**责任**)
+
+​		替换原则:		子类应该能够替换父类(is a的关系)
+
+​		接口隔离原则:**接口应该小而完备**,不需要被使用的接口应该尽量不对外暴露
+
+​		**优先使用对象组合**而不是继承: 继承在某种程度上破坏了封装性,子父类耦合度高
+
+​															对象的组合则只需要被组合对象具有良好的接口定义,耦合度低
+
+​		封装变化点: 使用封装来创建对象之间的分界层，让设计者可以在分界层的一侧进行修改，而不会对另一侧产							  生不良的影响，**一侧稳定,一侧变化**,从而实现层次间的松耦合						
+
+​		**针对接口(抽象层)编程**，而不是针对实现编程: 
+
+​							   不将变量类型声明为某个特定的具体类，而是声明为某个接口(抽象层)。
+
+​							   客户程序无需获知对象的具体类型，只需要知道对象所具有的接口(使用抽象层所具有的接口)
+
+​						       减少系统中各部分的依赖关系，从而实现“高内聚、松耦合” 的类型设计方案
+
+##### 设计模式分类:
+
+**组件协作:**通过晚绑定来实现框架与应用程序之间的松耦合
+
+​		**Template Method:**
+
+```c++
+/* 应用背景:在某一项任务中,常常有一些固定的操作步骤和流程,但又有部分子步骤的需求常常会发生改变 */
+class Library{ /* 应用程序库开发人员,可能很早以前就写好的库 */
+public:
+    void Run(){  /* 存在较为稳定的执行流程和步骤 */
+        Step1();
+        if (Step2()) { 	//支持变化 ==> 虚函数的多态调用
+            Step3(); 
+        }
+        for (int i = 0; i < 4; i++){
+            Step4(); 	//支持变化 ==> 虚函数的多态调用
+        }
+        Step5();
+    }
+	virtual ~Library(){ ... }
+protected:
+	/* 稳定不变的执行步骤 */
+	void Step1() { ... }	
+	void Step3() { ... }
+	void Step5() { ... }
+    /* 易变化的执行步骤,让子类继承,对其进行重写 */
+	virtual bool Step2() = 0;
+    virtual void Step4() =0; 
+};
+
+/* 现在的应用程序开发人员,继承Library并对Library中易变函数进行重写 */
+class Application : public Library {
+protected:
+	virtual bool Step2(){
+		//... 子类重写实现
+    }
+    virtual void Step4() {
+		//... 子类重写实现
+    }
+};
+
+int main(){
+	    Library* pLib=new Application(); 
+	    lib->Run(); /* 你不要调用我,让我来调用你 */
+		delete pLib;
+	}
+}
+```
+
+​		**Strategy:**
+
+```c++
+/* 应用背景:在一些任务中,某些对象可能在不同的情况或场景下需要使用不同的算法,如果将这些算法用if.else之类的方式都编码到对象中,将会使得对象本身变得复杂,且相对于不常被调用到的if.else分支,是一种性能负担 */
+class TaxStrategy{ /* 计税算法抽象类,易变化的算法应该继承于稳定的抽象类 */
+public:
+    virtual double Calculate(const Context& context)=0;
+    virtual ~TaxStrategy(){}
+};
+
+class CNTax : public TaxStrategy{ /* 不同地区的计税算法 */
+public:
+    virtual double Calculate(const Context& context){ ... }
+};
+class USTax : public TaxStrategy{ /* 不同地区的计税算法 */
+public:
+    virtual double Calculate(const Context& context){ ... }
+};
+class DETax : public TaxStrategy{ /* 不同地区的计税算法 */
+public:
+    virtual double Calculate(const Context& context){ ... }
+};
+/* 后期业务变化,新增的计税算法 */
+class FRTax : public TaxStrategy{ 
+public:
+	virtual double Calculate(const Context& context){ ... }
+};
+
+class SalesOrder{ /* 稳定的高层模块 */
+private:
+    TaxStrategy* strategy;	/* 维护着抽象类指针,准备多态的产生 */
+public:
+    SalesOrder(StrategyFactory* strategyFactory){ /* 根据具体情况创建对应的计税算法类 */
+        this->strategy = strategyFactory->NewStrategy();
+    }
+    ~SalesOrder(){
+        delete this->strategy;
+    }
+    public double CalculateTax(){
+        
+        Context context(); 
+        double val = strategy->Calculate(context); /* 多态调用 */
+        /* ... */
+    }
+};
+```
+
+​		**Observer/Event:**
+
+```c++
+/* 应用背景:在某一些任务中,我们需要为对象建立一种"通知依赖关系",即目标对象发生改变时其所对应的依赖对象(观察者对象)将得到通知,且这种依赖关系不能过于紧密 */
+class IProgress{ /* 抽象类,稳定的模块应该于抽象层 */
+public:
+	virtual void DoProgress(float value)=0;
+	virtual ~IProgress(){}
+};
+/* 文件分割功能模块,稳定的高层模块 */
+class FileSplitter { /* 订阅中,数据发送变化时即会通知观察者 */
+	string m_filePath;
+	int m_fileNumber;
+	/* 这里应该是一个抽象类基类,订阅者只需要继承并重写抽象类子类,即可被订阅中心通知调用 */
+	List<IProgress*>  m_iprogressList; /* 订阅者列表 */
+public:
+	FileSplitter(const string& filePath, int fileNumber) : 
+		m_filePath(filePath), 
+		m_fileNumber(fileNumber){ /* 构造 */
+	}
+	void split(){ /* 文件分割功能函数 */
+		/* 1.读取大文件 */
+		/* 2.分批次向小文件中写入 */
+		for (int i = 0; i < m_fileNumber; i++){
+			/* ... */
+			float progressValue = m_fileNumber;
+			progressValue = (i + 1) / progressValue;
+            /* ... */
+			onProgress(progressValue); /* 发送通知,依次调用订阅者功能函数 */
+		}
+	}
+    /* 向订阅列表添加新的订阅者 */
+	void addIProgress(IProgress* iprogress){
+		m_iprogressList.push_back(iprogress);
+	}
+    /* 从订阅列表删除订阅者 */
+	void removeIProgress(IProgress* iprogress){
+		m_iprogressList.remove(iprogress);
+	}
+protected:
+	virtual void onProgress(float value){ /* 发送通知,虚函数是继续方便被子类重写 */		
+		List<IProgress*>::iterator itor=m_iprogressList.begin();
+		while (itor != m_iprogressList.end()) /* 遍历订阅列表 */
+			(*itor)->DoProgress(value);  	  /* 依次调用订阅者功能函数 */
+			itor++;
+		}
+	}
+};
+
+class MainForm : public Form, public IProgress
+{
+	TextBox* txtFilePath;
+	TextBox* txtFileNumber;
+	ProgressBar* progressBar;
+public:
+	void Button1_Click(){
+		string filePath = txtFilePath->getText();
+		int number = atoi(txtFileNumber->getText().c_str());
+        FileSplitter splitter(filePath, number);
+		ConsoleNotifier cn;
+		splitter.addIProgress(this); /* 添加订阅者 */
+		splitter.addIProgress(&cn)； /* 添加订阅者 */
+		splitter.split();
+		splitter.removeIProgress(this);
+	}
+    /* 订阅者只需要继承抽象类,并重写对应的功能函数,即可被调用中心通知调用 */
+	virtual void DoProgress(float value){
+		progressBar->setValue(value);
+	}
+};
+/* 订阅者只需要继承抽象类,并重写对应的功能函数,即可被调用中心通知调用 */
+class ConsoleNotifier : public IProgress {
+public:
+	virtual void DoProgress(float value){
+		cout << ".";
+	}
+};
+```
+
+**单一职责:**
+
+​		**Decorator:**
+
+```c++
+```
+
+​		**Bridge:**
+
+```c++
+
+```
+
+**对象创建:**
+
+​		**Factory Mrthod:**
+
+```c++
+```
+
+​		**Abstract Factory:**
+
+```c++
+```
+
+​		**Prototype:**
+
+```c++
+```
+
+​		**Builder:**
+
+```c++
+```
+
+**对象性能:**
+
+​		**Singleton:**
+
+```c++
+```
+
+​		**Flyweight:**
+
+```c++
+```
+
+**接口隔离:**
+
+​		**Facade:**
+
+```c++
+
+```
+
+​		**Proxy:**
+
+```c++
+```
+
+​		**Mediator:**
+
+```c++
+```
+
+​		**Adapter:**
+
+```c++
+```
+
+**状态变化:**
+
+​		**Memento:**
+
+```c++
+```
+
+​		**State:**
+
+```c++
+```
+
+**数据结构:**
+
+​		**Composite:**
+
+```c++
+```
+
+​		**Iterator:**
+
+```c++
+```
+
+​		**Chain of Resposibility:**
+
+```c++
+```
+
+**行为变化:**
+
+​		**Command:**
+
+```c++
+```
+
+​		**Visitor:**
+
+```c++
+```
+
+**领域问题:**
+
+​		**Interpreter:**
+
+```c++
+```
+
