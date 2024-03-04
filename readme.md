@@ -2516,17 +2516,210 @@ public:
 };
 ```
 
-**单一职责:**
+**单一职责:**类责任划分不清,盲目使用继承,导致子类数量急剧膨胀,出现大量重复代码
 
 ​		**Decorator:**
 
 ```c++
+/* 应用背景:为了“扩展子类的功能”,过度使用继承,随着扩展子类的增加,各种扩展子类的组合,导致子类数量急剧膨胀 ,盲目继承扩展子类,易违背一个类的单一职责的设计原则 */
+class Stream{ 
+public：
+    virtual char Read(int number)=0;
+    virtual void Seek(int position)=0;
+    virtual void Write(char data)=0;
+    virtual ~Stream(){}
+};
+/* 业务操作 */
+class FileStream: public Stream{ /* 与Stream类职责方向一致 */
+public:
+    virtual char Read(int number){ ... }	/* 读文件流 */
+    virtual void Seek(int position){ ... }  /* 定位文件流 */
+    virtual void Write(char data){ ... }    /* 写文件流 */
+};
+class NetworkStream :public Stream{ /* 与Stream类职责方向一致 */
+public:
+    virtual char Read(int number){ ... } 	/* 读网络流 */
+    virtual void Seek(int position){ ... } 	/* 定位网络流 */
+    virtual void Write(char data){ ... } 	/* 写网络流 */  
+};
+class MemoryStream :public Stream{ /* 与Stream类职责方向一致 */
+public:
+    virtual char Read(int number){ ... }   /* 读内存流 */
+    virtual void Seek(int position){ ... } /* 定位内存流 */
+    virtual void Write(char data){ ... }   /* 写内存流 */
+};
+/* 装饰模式:在现有功能基础上添加一些额外的功能,功能与适配器相似 */
+DecoratorStream: public Stream{ /* 继承是为了加入继承体系,这样才能继续被其他类装饰 */
+protected:
+    Stream* stream; /* 维护一个抽象类指针,在产生多态时才能调用现有基础功能 */
+    DecoratorStream(Stream * stm):stream(stm){
+    } 
+};
+/* 扩展的加密功能 */
+class CryptoStream: public DecoratorStream { /* 与Stream类职责方向不一致,扩展功能方向 */
+public:
+    CryptoStream(Stream* stm):DecoratorStream(stm){ ... }
+    virtual char Read(int number){
+        /* 额外的加密操作... */
+        stream->Read(number);  /* 读文件流 */
+    }
+    virtual void Seek(int position){
+        /* 额外的加密操作... */
+        stream::Seek(position); /* 定位文件流 */
+        /* 额外的加密操作... */
+    }
+    virtual void Write(byte data){
+        /* 额外的加密操作... */
+        stream::Write(data);	/* 写文件流 */
+        /* 额外的加密操作... */
+    }
+};
+/* 扩展的缓存功能 */
+class BufferedStream : public DecoratorStream{ /* 与Stream类职责方向不一致,扩展功能方向 */
+public:
+    BufferedStream(Stream* stm):DecoratorStream(stm){ ... }    
+	/* 同上类似 */
+};
+void Process(){
+    /* 运行时装配,各种扩展功能可相互组合 */
+    FileStream* s1=new FileStream(); 			/* 读文件流 */
+    CryptoStream* s2=new CryptoStream(s1);  	/* 读文件流+加密 */
+    BufferedStream* s3=new BufferedStream(s1);	/* 读文件流+缓存 */
+    BufferedStream* s4=new BufferedStream(s2);  /* 读文件流+缓存+加密 */
+}
 ```
 
 ​		**Bridge:**
 
 ```c++
+/* 应用背景:由于某些类型的固有实现逻辑,使得其具有两个甚至多个维度的变化,此时我们需要将其继续抽象分离,使得它们可以相互独立的变化,最终通过抽象类指针进行桥接组合 */
+class Messager{ /* 未优化前:原抽象类型 */
+public:
+    /* 业务实现相关 */
+    virtual void Login(string username, string password)=0;
+    virtual void SendMessage(string message)=0;
+    virtual void SendPicture(Image image)=0;
+	/* 平台实现相关 */
+    virtual void PlaySound()=0;
+    virtual void DrawShape()=0;
+    virtual void WriteText()=0;
+    virtual void Connect()=0;
+    virtual ~Messager(){}
+};
+/* 优化后:将存在不同方向职责的抽象类继续分离 */
+class Messager{ /* 业务逻辑实现相关抽象类 */
+protected:
+     MessagerImp* messagerImp;//...
+public:
+    virtual void Login(string username, string password)=0;
+    virtual void SendMessage(string message)=0;
+    virtual void SendPicture(Image image)=0;
+    
+    virtual ~Messager(){}
+};
+class MessagerImp{
+public:
+    virtual void PlaySound()=0;
+    virtual void DrawShape()=0;
+    virtual void WriteText()=0;
+    virtual void Connect()=0;
+    
+    virtual MessagerImp(){}
+};
 
+
+//平台实现 n
+class PCMessagerImp : public MessagerImp{
+public:
+    
+    virtual void PlaySound(){
+        //**********
+    }
+    virtual void DrawShape(){
+        //**********
+    }
+    virtual void WriteText(){
+        //**********
+    }
+    virtual void Connect(){
+        //**********
+    }
+};
+
+class MobileMessagerImp : public MessagerImp{
+public:
+    
+    virtual void PlaySound(){
+        //==========
+    }
+    virtual void DrawShape(){
+        //==========
+    }
+    virtual void WriteText(){
+        //==========
+    }
+    virtual void Connect(){
+        //==========
+    }
+};
+
+
+
+//业务抽象 m
+
+//类的数目：1+n+m
+
+class MessagerLite :public Messager {
+
+    
+public:
+    
+    virtual void Login(string username, string password){
+        
+        messagerImp->Connect();
+        //........
+    }
+    virtual void SendMessage(string message){
+        
+        messagerImp->WriteText();
+        //........
+    }
+    virtual void SendPicture(Image image){
+        
+        messagerImp->DrawShape();
+        //........
+    }
+};
+class MessagerPerfect  :public Messager {
+public:
+    
+    virtual void Login(string username, string password){
+        
+        messagerImp->PlaySound();
+        //********
+        messagerImp->Connect();
+        //........
+    }
+    virtual void SendMessage(string message){
+        
+        messagerImp->PlaySound();
+        //********
+        messagerImp->WriteText();
+        //........
+    }
+    virtual void SendPicture(Image image){
+        
+        messagerImp->PlaySound();
+        //********
+        messagerImp->DrawShape();
+        //........
+    }
+};
+void Process(){
+    //运行时装配
+    MessagerImp* mImp=new PCMessagerImp();
+    Messager *m =new Messager(mImp);
+}
 ```
 
 **对象创建:**
@@ -2541,7 +2734,7 @@ public:
 ```c++
 ```
 
-​		**Prototype:**
+​		**Prototype:    **
 
 ```c++
 ```
