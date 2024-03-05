@@ -2595,11 +2595,11 @@ void Process(){
 /* 应用背景:由于某些类型的固有实现逻辑,使得其具有两个甚至多个维度的变化,此时我们需要将其继续抽象分离,使得它们可以相互独立的变化,最终通过抽象类指针进行桥接组合 */
 class Messager{ /* 未优化前:原抽象类型 */
 public:
-    /* 业务实现相关 */
+    /* 业务实现相关方向 */
     virtual void Login(string username, string password)=0;
     virtual void SendMessage(string message)=0;
     virtual void SendPicture(Image image)=0;
-	/* 平台实现相关 */
+	/* 平台实现相关方向 */
     virtual void PlaySound()=0;
     virtual void DrawShape()=0;
     virtual void WriteText()=0;
@@ -2609,116 +2609,77 @@ public:
 /* 优化后:将存在不同方向职责的抽象类继续分离 */
 class Messager{ /* 业务逻辑实现相关抽象类 */
 protected:
-     MessagerImp* messagerImp;//...
+     MessagerImp* messagerImp; /* 通过该抽象类指针,进行两个变化方向上的桥接 */
 public:
     virtual void Login(string username, string password)=0;
     virtual void SendMessage(string message)=0;
     virtual void SendPicture(Image image)=0;
-    
     virtual ~Messager(){}
 };
-class MessagerImp{
+class MessagerImp{ /* 平台实现逻辑相关抽象类 */
 public:
     virtual void PlaySound()=0;
     virtual void DrawShape()=0;
     virtual void WriteText()=0;
     virtual void Connect()=0;
-    
     virtual MessagerImp(){}
 };
-
-
-//平台实现 n
+/* 平台实现相关 */
 class PCMessagerImp : public MessagerImp{
 public:
-    
-    virtual void PlaySound(){
-        //**********
-    }
-    virtual void DrawShape(){
-        //**********
-    }
-    virtual void WriteText(){
-        //**********
-    }
-    virtual void Connect(){
-        //**********
-    }
+    virtual void PlaySound(){ ... }
+    virtual void DrawShape(){ ... }
+    virtual void WriteText(){ ... }
+    virtual void Connect(){ ... }
 };
-
 class MobileMessagerImp : public MessagerImp{
 public:
-    
-    virtual void PlaySound(){
-        //==========
+    virtual void PlaySound(){ ... }
+    virtual void DrawShape(){ ... }
+    virtual void WriteText(){ ... }
+    virtual void Connect(){ ... }
+};
+/* 业务实现相关 */
+class MessagerLite:public Messager { /* 利用平台实现相关抽象类指针进行桥接 */
+public:  
+    virtual void Login(string username, string password){
+        messagerImp->Connect();
+        /* ... */
     }
-    virtual void DrawShape(){
-        //==========
+    virtual void SendMessage(string message){  
+        messagerImp->WriteText();
+        /* ... */
     }
-    virtual void WriteText(){
-        //==========
-    }
-    virtual void Connect(){
-        //==========
+    virtual void SendPicture(Image image){ 
+        messagerImp->DrawShape();
+        /* ... */
     }
 };
-
-
-
-//业务抽象 m
-
-//类的数目：1+n+m
-
-class MessagerLite :public Messager {
-
-    
-public:
-    
+class MessagerPerfect:public Messager { /* 利用平台实现相关抽象类指针进行桥接 */
+public: 
     virtual void Login(string username, string password){
-        
+        messagerImp->PlaySound();
+        /* ... */
         messagerImp->Connect();
-        //........
+        /* ... */
     }
     virtual void SendMessage(string message){
-        
+        messagerImp->PlaySound();
+        /* ... */
         messagerImp->WriteText();
-        //........
+        /* ... */
     }
     virtual void SendPicture(Image image){
-        
+        messagerImp->PlaySound();
+        /* ... */
         messagerImp->DrawShape();
-        //........
-    }
-};
-class MessagerPerfect  :public Messager {
-public:
-    
-    virtual void Login(string username, string password){
-        
-        messagerImp->PlaySound();
-        //********
-        messagerImp->Connect();
-        //........
-    }
-    virtual void SendMessage(string message){
-        
-        messagerImp->PlaySound();
-        //********
-        messagerImp->WriteText();
-        //........
-    }
-    virtual void SendPicture(Image image){
-        
-        messagerImp->PlaySound();
-        //********
-        messagerImp->DrawShape();
-        //........
+        /* ... */
     }
 };
 void Process(){
     //运行时装配
     MessagerImp* mImp=new PCMessagerImp();
-    Messager *m =new Messager(mImp);
+    Messager *m =new MessagerPerfect(mImp); /* 注意:上面省略了构造函数 */
 }
 ```
 
