@@ -2682,16 +2682,73 @@ void Process(){
 }
 ```
 
-**对象创建:**
+**对象创建:**通过间接的对象创建,来绕开new,以此解开抽象(稳定)与实现(易变)之间的耦合
 
 ​		**Factory Mrthod:**
 
 ```c++
+/* 应用背景:在软件系统中,由于需求的变化,需要创建的对象的具体类型经常需要变化 */
+class ISplitter{ /* 文件分割抽象类 */
+public:
+    virtual void split()=0;
+    virtual ~ISplitter(){}
+};
+/* 具体类 */
+class BinarySplitter : public ISplitter{ ... }; /* 二进制文件分割 */
+class TxtSplitter: public ISplitter{ ... } 		/* TXT文本分割 */
+class PictureSplitter: public ISplitter{ ... } 	/* 图片分割 */
+class VideoSplitter: public ISplitter{ ... } 	/* 视频分割 */
+
+class SplitterFactory{ /* 工厂抽象类 */
+public:
+    virtual ISplitter* CreateSplitter()=0;
+    virtual ~SplitterFactory(){}
+};
+/* 稳定部分 */
+class MainForm : public Form
+{
+    SplitterFactory*  factory;	/* 工厂 */
+public:
+    MainForm(SplitterFactory*  factory){ /* 传入具体工厂类 */
+        this->factory=factory;
+    }
+	void Button1_Click(){    
+        //ISplitter* splitter= new BinarySplitter();/* 不应该依赖于具体实现,应该依赖于抽象 */
+		ISplitter* splitter= factory->CreateSplitter(); /*依赖于抽象,利用多态来new具体类 */
+        splitter->split();
+	}
+};
+/* 具体工厂 */
+class BinarySplitterFactory: public SplitterFactory{
+public:
+    virtual ISplitter* CreateSplitter(){
+        return new BinarySplitter(); /* 创建二进制文件分割对象 */
+    }
+};
+class TxtSplitterFactory: public SplitterFactory{
+public:
+    virtual ISplitter* CreateSplitter(){ 
+        return new TxtSplitter(); 	/* 创建TXT文本分割对象 */
+    }
+};
+class PictureSplitterFactory: public SplitterFactory{
+public:
+    virtual ISplitter* CreateSplitter(){
+        return new PictureSplitter();/* 创建图片分割对象 */
+    }
+};
+class VideoSplitterFactory: public SplitterFactory{
+public:
+    virtual ISplitter* CreateSplitter(){
+        return new VideoSplitter();  /* 创建视频分割对象 */
+    }
+};
 ```
 
 ​		**Abstract Factory:**
 
 ```c++
+/* 应用背景: */
 ```
 
 ​		**Prototype:    **
