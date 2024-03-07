@@ -2748,24 +2748,226 @@ public:
 ​		**Abstract Factory:**
 
 ```c++
-/* 应用背景: */
+/* 应用背景:在软件系统中,经常存在多个一系列相互依赖的对象需要被创建 */
+/* 抽象工厂模式也可以理解为家族工厂 */
+
+/* 数据库访问有关的基类 */
+class IDBConnection{ ... }; /* 一系列具有相互依赖性的抽象基类 */
+class IDBCommand{ ... };
+class IDataReader{ ... };
+/* 支持SQL Server */	
+class SqlConnection: public IDBConnection{ ... }; /* 具体实现 */
+class SqlCommand: public IDBCommand{ ... };
+class SqlDataReader: public IDataReader{ ... };
+/* 支持Oracle */
+class OracleConnection: public IDBConnection{ ... }; /* 具体实现 */
+class OracleCommand: public IDBCommand{ ... };
+class OracleDataReader: public IDataReader{ ... };
+/* 家族工厂抽象类,将具有相互依赖的一系列抽象类进行一起封装 */
+class IDBFactory{ 
+public:
+    virtual IDBConnection* CreateDBConnection()=0;
+    virtual IDBCommand* CreateDBCommand()=0;
+    virtual IDataReader* CreateDataReader()=0;
+};
+/* 抽象工厂具体实现类 */
+class SqlDBFactory:public IDBFactory{ 
+public:
+    virtual IDBConnection* CreateDBConnection(){ ... }; /* new SqlConnection */
+    virtual IDBCommand* CreateDBCommand(){ ... }; 		/* new SqlCommand */
+    virtual IDataReader* CreateDataReader(){ ... }; 	/* new SqlDataReader */
+};
+class OracleDBFactory:public IDBFactory{ 
+public:
+    virtual IDBConnection* CreateDBConnection(){ ... }; /* new OracleConnection */
+    virtual IDBCommand* CreateDBCommand(){ ... }; 		/* new OracleCommand */
+    virtual IDataReader* CreateDataReader(){ ... }; 	/* new OracleDataReader */
+};
+
+class EmployeeDAO{ /* 利用家族工厂抽象类将一系列具有相关性的抽象类进行封装 */
+    IDBFactory* dbFactory;
+public:
+    vector<EmployeeDO> GetEmployees(){
+        //IDBConnection* connection = new SqlConnection(); /* 抽象不应该依赖于实现 */
+        IDBConnection* connection = dbFactory->CreateDBConnection(); /* 稳定 */
+        connection->ConnectionString("...");
+        //IDBCommand* command = new SqlCommand(); /* 抽象不应该依赖于实现 */
+        IDBCommand* command = dbFactory->CreateDBCommand(); /* 稳定 */
+        command->CommandText("...");
+        command->SetConnection(connection); 
+        IDBDataReader* reader = command->ExecuteReader(); 
+        while (reader->Read()){ ... }
+    }
+};
 ```
 
 ​		**Prototype:    **
 
 ```c++
+/* 应用背景:由于需求的变更,某些具有稳定一致接口的复杂对象会产生一定变化,存在想保存这种状态,并创建具有该状态的对象的需求 */  
+class MainForm : public Form
+{
+    ISplitter*  prototype; /* 原型对象 */
+public:
+    MainForm(ISplitter*  prototype){
+        this->prototype=prototype; /* 创建对象但不使用对象本身,只使用对象的克隆版本 */
+    }
+	void Button1_Click(){
+		ISplitter * splitter=prototype->clone(); /* 只使用克隆版本,间接保存了原对象的状态 */   
+        splitter->split();
+	}
+};
+class ISplitter{ /* 文件分割抽象类 */
+public:
+    virtual void split()=0;
+    virtual ISplitter* clone()=0; /* 通过克隆自己来创建对象 */
+    virtual ~ISplitter(){ ... }
+};
+/* 具体实现类 */
+class BinarySplitter : public ISplitter{
+public:
+    virtual ISplitter* clone(){
+        return new BinarySplitter(*this); /* 利用类的构造函数实现对自身的克隆 */
+    }
+};
+class TxtSplitter: public ISplitter{
+public:
+    virtual ISplitter* clone(){
+        return new TxtSplitter(*this); /* 利用类的构造函数实现对自身的克隆 */
+    }
+};
+class PictureSplitter: public ISplitter{
+public:
+    virtual ISplitter* clone(){
+        return new PictureSplitter(*this); /* 利用类的构造函数实现对自身的克隆 */
+    }
+};
+class VideoSplitter: public ISplitter{
+public:
+    virtual ISplitter* clone(){
+        return new VideoSplitter(*this); /* 利用类的构造函数实现对自身的克隆 */
+    }
+};
 ```
 
 ​		**Builder:**
 
 ```c++
+/* 应用背景:在软件系统中经常面临着复杂对象的创建,由于需求变化,该复杂对象的各个部分经常面临着剧烈变化,但将其各个部分相互组合在一起时要求相对稳定 */
+/* 将复杂对象的创建和表示相互抽离,将创建过程逐步(易变)分解后在组合(稳定) */
+class House{ /* 复杂对象本身 */
+    /* 复杂对象的表示 */
+};
+class HouseBuilder { /* 将复杂对象的构建部分进行抽离 */
+public:
+    House* GetResult(){
+        return pHouse;
+    }
+    virtual ~HouseBuilder(){}
+protected:
+    House* pHouse;	/* 组合着复杂对象表示部分 */
+	virtual void BuildPart1()=0;
+    virtual void BuildPart2()=0;
+    virtual void BuildPart3()=0;
+    virtual void BuildPart4()=0;
+    virtual void BuildPart5()=0;
+};
+class StoneHouse: public House{ ... }; /* 复杂对象表示部分的抽象实现 */
+class StoneHouseBuilder: public HouseBuilder{ /* 复杂对象构键部分的抽象实现 */
+protected: 
+    virtual void BuildPart1(){
+        //pHouse->Part1 = ...;
+    }
+    virtual void BuildPart2(){ ... }
+    virtual void BuildPart3(){ ... }
+    virtual void BuildPart4(){ ... }
+    virtual void BuildPart5(){ ... }
+};
+class HouseDirector{  /* 对象初始化部分过于复杂,继续进行抽离 */  
+public:
+    HouseBuilder* pHouseBuilder;  /* 组合着复杂对象的构建部分 */
+    HouseDirector(HouseBuilder* pHouseBuilder){
+        this->pHouseBuilder=pHouseBuilder;
+    }    
+    House* Construct(){  /* 复杂对象初始化部分,稳定 */      
+        pHouseBuilder->BuildPart1();        
+        for (int i = 0; i < 4; i++){
+            pHouseBuilder->BuildPart2();
+        }
+        bool flag=pHouseBuilder->BuildPart3();
+        if(flag){
+            pHouseBuilder->BuildPart4();
+        }
+        pHouseBuilder->BuildPart5();      
+        return pHouseBuilder->GetResult();
+    }
+};
+/* 使用 */
+House* house = new StoneHouse(); /* 将复杂对象的稳定和不稳定部分相互进行分解 */
+HouseBuilder* housebuilder = new StoneHouseBuilder(house)
+HouseDirector tmp = HouseDirector(housebuilder)
 ```
 
-**对象性能:**
+**对象性能:**当一个只读对象被创建成千上万个时,其所带来的性能代价将不可忽视
 
 ​		**Singleton:**
 
 ```c++
+/* 应用背景:在软件系统中,经常有一些特殊类,要求其在系统中只存在一个唯一实例,才能保证其逻辑的正确性及良好的效率 */
+class Singleton{
+private: /* 将构造函数私有化,即可阻止外部对象的创建 */
+    Singleton();
+    Singleton(const Singleton& other);
+public:
+    static Singleton* getInstance();
+    static Singleton* m_instance;
+};
+Singleton* Singleton::m_instance=nullptr;
+
+//线程非安全版本
+Singleton* Singleton::getInstance() {
+    if (m_instance == nullptr) {
+        m_instance = new Singleton();
+    }
+    return m_instance;
+}
+//线程安全版本，但锁的代价过高
+Singleton* Singleton::getInstance() {
+    Lock lock;
+    if (m_instance == nullptr) {
+        m_instance = new Singleton();
+    }
+    return m_instance;
+}
+//双检查锁，但由于内存读写reorder不安全
+Singleton* Singleton::getInstance() {
+    
+    if(m_instance==nullptr){
+        Lock lock;
+        if (m_instance == nullptr) {
+            m_instance = new Singleton();
+        }
+    }
+    return m_instance;
+}
+//C++ 11版本之后的跨平台实现 (volatile)
+std::atomic<Singleton*> Singleton::m_instance;
+std::mutex Singleton::m_mutex;
+
+Singleton* Singleton::getInstance() {
+    Singleton* tmp = m_instance.load(std::memory_order_relaxed);
+    std::atomic_thread_fence(std::memory_order_acquire);//获取内存fence
+    if (tmp == nullptr) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        tmp = m_instance.load(std::memory_order_relaxed);
+        if (tmp == nullptr) {
+            tmp = new Singleton;
+            std::atomic_thread_fence(std::memory_order_release);//释放内存fence
+            m_instance.store(tmp, std::memory_order_relaxed);
+        }
+    }
+    return tmp;
+}
 ```
 
 ​		**Flyweight:**
