@@ -2919,50 +2919,48 @@ private: /* 将构造函数私有化,即可阻止外部对象的创建 */
     Singleton();
     Singleton(const Singleton& other);
 public:
-    static Singleton* getInstance();
+    static Singleton* getInstance(); /* 通过静态函数获取唯一的对象实例 */
     static Singleton* m_instance;
 };
 Singleton* Singleton::m_instance=nullptr;
-
-//线程非安全版本
+/* 线程非安全版本 */
 Singleton* Singleton::getInstance() {
-    if (m_instance == nullptr) {
+    if (m_instance == nullptr) { 
+        m_instance = new Singleton(); 
+    }
+    return m_instance;
+}
+/* 线程安全版本，但锁的代价过高 */
+Singleton* Singleton::getInstance() {
+    Lock lock; /* 线程锁,伪代码 */
+    if (m_instance == nullptr) { /* 仅第一次判断是有意义的,之后的判断都是性能消耗 */
         m_instance = new Singleton();
     }
     return m_instance;
 }
-//线程安全版本，但锁的代价过高
+/* 双检查锁，但由于内存读写reorder不安全 */
 Singleton* Singleton::getInstance() {
-    Lock lock;
-    if (m_instance == nullptr) {
-        m_instance = new Singleton();
-    }
-    return m_instance;
-}
-//双检查锁，但由于内存读写reorder不安全
-Singleton* Singleton::getInstance() {
-    
     if(m_instance==nullptr){
-        Lock lock;
+        Lock lock; /* 线程锁,伪代码 */
         if (m_instance == nullptr) {
-            m_instance = new Singleton();
+           /* 由于编译器优化的原因,对象创建可能是先返回地址,后初始化,未被初始化的对象,不应该被使用 */
+            m_instance = new Singleton(); 
         }
     }
     return m_instance;
 }
-//C++ 11版本之后的跨平台实现 (volatile)
+/* C++ 11版本之后的跨平台实现 (volatile),解决reorder问题 */
 std::atomic<Singleton*> Singleton::m_instance;
 std::mutex Singleton::m_mutex;
-
 Singleton* Singleton::getInstance() {
     Singleton* tmp = m_instance.load(std::memory_order_relaxed);
-    std::atomic_thread_fence(std::memory_order_acquire);//获取内存fence
+    std::atomic_thread_fence(std::memory_order_acquire);/* 获取内存fence */
     if (tmp == nullptr) {
         std::lock_guard<std::mutex> lock(m_mutex);
         tmp = m_instance.load(std::memory_order_relaxed);
         if (tmp == nullptr) {
             tmp = new Singleton;
-            std::atomic_thread_fence(std::memory_order_release);//释放内存fence
+            std::atomic_thread_fence(std::memory_order_release);/* 释放内存fence */
             m_instance.store(tmp, std::memory_order_relaxed);
         }
     }
@@ -2973,29 +2971,122 @@ Singleton* Singleton::getInstance() {
 ​		**Flyweight:**
 
 ```c++
+/* 应用背景:在软件系统中,经常存在大量类似于完全相同的只读对象,如:字符串,如果采用纯粹的对象创建的方式,将会付出很高的内存代价,采样共享技术,是一个很好的解决方案 */
+class Font { /* 在一个系统中,同样的字体对象可能会在多处被使用 */
+private:
+    //unique object key
+    string key;
+    //object state
+public:
+    Font(const string& key){ ... }
+};
+class FontFactory{
+private:
+    map<string,Font* > fontPool; /* 共享对象池 */
+public:
+    Font* GetFont(const string& key){
+        map<string,Font*>::iterator item=fontPool.find(key);  
+        if(item!=footPool.end()){ /* 从对象池中查找对象,如果存在则返回查找到的对象 */
+            return fontPool[key];
+        }else{ /* 如果对象池中没有,则需要重新创建并返回 */
+            Font* font = new Font(key);
+            fontPool[key]= font; /* 将新创建的对象放入对象池 */
+            return font;
+        }
+    }
+    void clear(){ ... }
+};
 ```
 
-**接口隔离:**
+**接口隔离:**在软件构建过程中,接口之间的直接依赖会带来很多问题,添加一个中间接口层(稳定),是常见的解决方案
 
 ​		**Facade:**
 
 ```c++
+/* 应用背景:需要简化客户程序和系统组件之间的交互接口,为系统组件提供一个稳定一致的对外接口(稳定),将系统组件内对象之间的复杂依赖(变化)限定到系统组件内 */
+/* 泛泛的整体概念,无代码实例 */
+```
+​		**Mediator:**
 
+```c++
+/* 应用背景:在系统组件内,经常会存在多个相互关联的对象,且这些对象常常会维持着复杂的引用关系,由于需求的变更,这些关系面临着不断的变化,可以使用一个中介者类来封装这些有复杂关系且变化的类,将这些复杂的引用关系维持在中介中,具体的类在使用时传入中介者即可 */
+/* 泛泛的整体概念,无代码实例 */
 ```
 
 ​		**Proxy:**
 
 ```c++
-```
-
-​		**Mediator:**
-
-```c++
+/* 应用背景:在面向对象系统中,由于某些原因,直接访问会给使用者或系统带来很多问题,如:对象创建开销大,操作需要安全控制,进程需要对外远程访问等,需要提供一个中间层接口来进行访问控制 */
+class ISubject{
+public:
+    virtual void process();
+};
+/* 实际类 */
+class RealSubject: public ISubject{
+public:
+    virtual void process(){ ... }
+};
+/* Proxy的设计 */
+class SubjectProxy: public ISubject{
+public:
+    virtual void process(){
+        /* 对RealSubject的一种间接访问 */
+        /* ... */
+    }
+};
+class ClientApp{
+    ISubject* subject;
+public:
+    ClientApp(){
+        //subject=new RealSubject(); /* 直接使用 */
+        subject=new SubjectProxy(); /* 通过中间层间接访问 */
+    }
+    void DoTask(){
+        /* ... */
+        subject->process();
+        /* ... */
+    }
+};
 ```
 
 ​		**Adapter:**
 
 ```c++
+/* 应用背景:由于需求的变化,我们常常需要将一些现有的旧类库放到新环境中使用,然而旧的类库与新环境所要求的接口又有所不同,所以需要针对旧类库的接口进行适配 */
+class ITarget{ 	/* 目标接口(新接口) */
+public:
+    virtual void process()=0;
+};
+class IAdaptee{ /* 遗留接口(老接口) */
+public:
+    virtual void foo(int data)=0;
+    virtual int bar()=0;
+};
+class OldClass: public IAdaptee{ ... }; /* 遗留旧的类型 */
+/* 对象适配器 */
+class Adapter: public ITarget{ /* 继承 */
+protected:
+    IAdaptee* pAdaptee; /* 通过组合来实现对旧类的适配 */
+public:
+    Adapter(IAdaptee* pAdaptee){
+        this->pAdaptee=pAdaptee;
+    }
+    virtual void process(){
+        int data=pAdaptee->bar();
+        pAdaptee->foo(data);   
+    }
+};
+/* 类适配器 */
+class Adapter: public ITarget,
+               protected OldClass{ /* 多继承 */       
+/* 通过继承来实现对类的适配,不建议使用,耦合性太高 */
+}
+/* 使用 */
+int main(){
+    IAdaptee* pAdaptee=new OldClass(); 		/* 旧类 */
+    ITarget* pTarget=new Adapter(pAdaptee); /* 针对旧类进行新接口的适配 */
+    pTarget->process();
+}
 ```
 
 **状态变化:**
