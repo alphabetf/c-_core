@@ -3091,9 +3091,40 @@ int main(){
 
 **状态变化:**
 
-​		**Memento:**
+​		**Memento:**在组件构建过程中,某些对象的状态经常发生改变,如何管理这些状态的变化,同时又维护高层模块的稳定
 
 ```c++
+/* 应用背景:在软件构建过程中,由于某种需求,要求程序对象能够回溯到之前某一个时刻的状态,如果让对象对外提供公共的获取状态的接口,则会破坏对象的封装性 */
+class Memento /* 在对象之外保存的对象状态 */
+{
+    string state;
+    /* ... */
+public:
+    Memento(const string & s) : state(s) { }
+    string getState() const { return state; }
+    void setState(const string & s) { state = s; }
+};
+class Originator /* 原对象,需要被保存的对象 */
+{
+    string state; /* 对象状态就是对象的数据 */
+    /* ... */
+public:
+    Originator() {}
+    Memento createMomento() { 
+        Memento m(state); /* 在不破环封装的情况下在对象之外保存对象状态 */
+        return m;
+    }
+    void setMomento(const Memento & m) {
+        state = m.getState();
+    }
+};
+int main()
+{
+    Originator orginator;
+    Memento mem = orginator.createMomento();  /* 捕获对象状态，存储到备忘录 */
+    /* ... 改变orginator状态 */
+    orginator.setMomento(memento);  /* 从备忘录中恢复对象状态 */
+}
 ```
 
 ​		**State:**
