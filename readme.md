@@ -2398,7 +2398,6 @@ public:
     virtual double Calculate(const Context& context)=0;
     virtual ~TaxStrategy(){}
 };
-
 class CNTax : public TaxStrategy{ /* 不同地区的计税算法 */
 public:
     virtual double Calculate(const Context& context){ ... }
@@ -2428,7 +2427,6 @@ public:
         delete this->strategy;
     }
     public double CalculateTax(){
-        
         Context context(); 
         double val = strategy->Calculate(context); /* 多态调用 */
         /* ... */
@@ -2446,7 +2444,7 @@ public:
 	virtual ~IProgress(){}
 };
 /* 文件分割功能模块,稳定的高层模块 */
-class FileSplitter { /* 订阅中,数据发送变化时即会通知观察者 */
+class FileSplitter { /* 订阅中心,数据发送变化时即会通知观察者 */
 	string m_filePath;
 	int m_fileNumber;
 	/* 这里应该是一个抽象类基类,订阅者只需要继承并重写抽象类子类,即可被订阅中心通知调用 */
@@ -2932,7 +2930,7 @@ Singleton* Singleton::getInstance() {
 }
 /* 线程安全版本，但锁的代价过高 */
 Singleton* Singleton::getInstance() {
-    Lock lock; /* 线程锁,伪代码 */
+    Lock lock; /* 线程锁,伪代码 */ 
     if (m_instance == nullptr) { /* 仅第一次判断是有意义的,之后的判断都是性能消耗 */
         m_instance = new Singleton();
     }
@@ -2940,7 +2938,7 @@ Singleton* Singleton::getInstance() {
 }
 /* 双检查锁，但由于内存读写reorder不安全 */
 Singleton* Singleton::getInstance() {
-    if(m_instance==nullptr){
+    if(m_instance==nullptr){ /* 消减了锁的代价 */
         Lock lock; /* 线程锁,伪代码 */
         if (m_instance == nullptr) {
            /* 由于编译器优化的原因,对象创建可能是先返回地址,后初始化,未被初始化的对象,不应该被使用 */
@@ -3111,7 +3109,7 @@ class Originator /* 原对象,需要被保存的对象 */
 public:
     Originator() {}
     Memento createMomento() { 
-        Memento m(state); /* 在不破环封装的情况下在对象之外保存对象状态 */
+        m = new Memento(state); /* 在不破环封装的情况下在对象之外保存对象状态 */
         return m;
     }
     void setMomento(const Memento & m) {
