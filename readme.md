@@ -3130,13 +3130,178 @@ int main()
 ​		**State:**
 
 ```c++
+/*  应用背景:在软件构建过程中,某些对象的状态发生改变,其行为也会随之发生改变,应将对象的状态和行为封装成一个对象,并保留统一的接口,来实现对象状态的转换和行为变化之间的解耦合 */
+/* 使用状态模式解耦合之前 */
+enum NetworkState{ /*状态和其对应的行为操作,随需求变化可能有所变化 */
+    Network_Open,
+    Network_Close,
+    Network_Connect,
+};
+class NetworkProcessor{  
+    NetworkState state;
+public:
+    void Operation1(){ /* 状态的变化会导致行为的变化 */
+        if (state == Network_Open){
+            /* ... */
+            state = Network_Close;
+        }else if (state == Network_Close){
+			/* ... */
+            state = Network_Connect;
+        }else if (state == Network_Connect){
+            /* ... */
+            state = Network_Open;
+        }
+    }
+    public void Operation2(){
+        if (state == Network_Open){
+            /* ... */
+            state = Network_Connect;
+        }else if (state == Network_Close){
+			/* ... */
+            state = Network_Open;
+        }else if (state == Network_Connect){
+			/* ... */
+            state = Network_Close;
+        }
+    }
+    public void Operation3(){ ... }
+};
+/* 使用state模式将状态变化和行为变化解耦合 */
+class NetworkState{ /* 状态和行为的抽象基类 */
+public:
+    NetworkState* pNext;
+    virtual void Operation1()=0;
+    virtual void Operation2()=0;
+    virtual void Operation3()=0;
+    virtual ~NetworkState(){}
+};
+class OpenState :public NetworkState{ /* 将状态和行为封装成对象 */   
+    static NetworkState* m_instance;
+public:
+    static NetworkState* getInstance(){ /* 状态没有实例对象,各级上下文可共享一个对象 */
+        if (m_instance == nullptr) {
+            m_instance = new OpenState();
+        }
+        return m_instance;
+    }
+    void Operation1(){     
+        /* ... */
+        pNext = CloseState::getInstance();
+    }  
+    void Operation2(){       
+        /* ... */
+        pNext = ConnectState::getInstance();
+    }    
+    void Operation3(){      
+        /* ... */
+        pNext = OpenState::getInstance();
+    }   
+};
+class CloseState:public NetworkState{ ... } 
+class NetworkProcessor{   
+    NetworkState* pState;   /* 使用统一的抽象接口 */
+public:   
+    NetworkProcessor(NetworkState* pState){
+        this->pState = pState;
+    }   
+    void Operation1(){
+        /* ...*/
+        pState->Operation1();
+        pState = pState->pNext;
+        /* ...*/
+    }    
+    void Operation2(){
+        /* ...*/
+        pState->Operation2();
+        pState = pState->pNext;
+        /* ...*/
+    }
+    void Operation3(){
+        /* ...*/
+        pState->Operation3();
+        pState = pState->pNext;
+        /* ...*/
+    }
+};
 ```
 
-**数据结构:**
+**数据结构:**常常有一些组件在其内部具有特定的数据结构,直接使用将破坏其复用性,将特定数据结构封装在内部,对外提供统一的接口,来实现与数据结构无关的访问,是一种行之有效的解决方式
 
 ​		**Composite:**
 
 ```c++
+/* 应用背景:复杂对象容器内部结构可能存在多个组成部分,通过让用户程序对单个部分和组合部分的操作具有一致性,来解耦用户程序与对象容器内部数据结构的依赖 */
+class Component /* 抽象基类 */
+{
+public:
+    virtual void process() = 0;
+    virtual ~Component(){}
+};
+/* 树节点 */
+class Composite : public Component{ /*  */
+    string name;
+    list<Component*> elements;
+public:
+    Composite(const string & s) : name(s) {}
+    
+    void add(Component* element) {
+        elements.push_back(element);
+    }
+    void remove(Component* element){
+        elements.remove(element);
+    }
+    
+    void process(){   
+        //1. process current node
+        //2. process leaf nodes
+        for (auto &e : elements)
+            e->process(); //多态调用    
+    }
+};
+
+//叶子节点
+class Leaf : public Component{
+    string name;
+public:
+    Leaf(string s) : name(s) {}
+            
+    void process(){
+        //process current node
+    }
+};
+void Invoke(Component & c){
+    //...
+    c.process();
+    //...
+}
+
+#include <iostream>
+#include <list>
+#include <string>
+#include <algorithm>
+using namespace std;
+int main()
+{
+    Composite root("root");
+    Composite treeNode1("treeNode1");
+    Composite treeNode2("treeNode2");
+    Composite treeNode3("treeNode3");
+    Composite treeNode4("treeNode4");
+    Leaf leat1("left1");
+    Leaf leat2("left2");
+    
+    root.add(&treeNode1);
+    treeNode1.add(&treeNode2);
+    treeNode2.add(&leaf1);
+    
+    root.add(&treeNode3);
+    treeNode3.add(&treeNode4);
+    treeNode4.add(&leaf2);
+    
+    process(root);
+    process(leaf2);
+    process(treeNode3); 
+}
 ```
 
 ​		**Iterator:**
