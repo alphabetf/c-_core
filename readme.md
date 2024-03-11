@@ -3238,50 +3238,37 @@ public:
     virtual ~Component(){}
 };
 /* 树节点 */
-class Composite : public Component{ /*  */
+class Composite : public Component{ /* 组合部分 */
     string name;
-    list<Component*> elements;
+    list<Component*> elements;	/* 既可接收单个部分也可以接收组合部分 */
 public:
     Composite(const string & s) : name(s) {}
-    
     void add(Component* element) {
         elements.push_back(element);
     }
     void remove(Component* element){
         elements.remove(element);
     }
-    
     void process(){   
-        //1. process current node
-        //2. process leaf nodes
+        /* 1. process current node */
+        /* 2. process leaf nodes */
         for (auto &e : elements)
-            e->process(); //多态调用    
+            e->process(); /* 多态调用 */ 
     }
 };
-
-//叶子节点
-class Leaf : public Component{
+/* 叶子节点 */
+class Leaf : public Component{ /* 单个部分 */
     string name;
 public:
-    Leaf(string s) : name(s) {}
-            
+    Leaf(string s) : name(s) {}   
     void process(){
-        //process current node
+        /* process current node */
     }
 };
-void Invoke(Component & c){
-    //...
-    c.process();
-    //...
-}
-
-#include <iostream>
-#include <list>
-#include <string>
-#include <algorithm>
-using namespace std;
+/* 使用 */
 int main()
 {
+    /* 创建节点 */
     Composite root("root");
     Composite treeNode1("treeNode1");
     Composite treeNode2("treeNode2");
@@ -3289,15 +3276,13 @@ int main()
     Composite treeNode4("treeNode4");
     Leaf leat1("left1");
     Leaf leat2("left2");
-    
+    /* 添加节点 */
     root.add(&treeNode1);
     treeNode1.add(&treeNode2);
     treeNode2.add(&leaf1);
-    
     root.add(&treeNode3);
     treeNode3.add(&treeNode4);
     treeNode4.add(&leaf2);
-    
     process(root);
     process(leaf2);
     process(treeNode3); 
@@ -3307,29 +3292,321 @@ int main()
 ​		**Iterator:**
 
 ```c++
+/* 应用背景:在软件的构建过程中,集合对象的内部结构常常变化各异,对于这种集合对象,我们希望在不暴露其内部结构的同时,让外部用户可以操作其内部元素 */
+template<typename T>	/* 迭代器抽象类 */
+class Iterator /* 迭代器使用多态会降低性能 */
+{
+public:
+    virtual void first() = 0;
+    virtual void next() = 0;
+    virtual bool isDone() const = 0;
+    virtual T& current() = 0;
+};
+template<typename T>  /* 集合对象类 */
+class MyCollection{ 
+public:
+    Iterator<T> GetIterator(){ ... }  /* 返回集合的迭代器 */
+};
+template<typename T>  /* 集合迭代器 */
+class CollectionIterator : public Iterator<T>{
+    MyCollection<T> mc; /* 维护着一个集合 */
+public:
+    CollectionIterator(const MyCollection<T> & c): mc(c){ }
+    void first() override { ... }
+    void next() override { ... }
+    bool isDone() const override{ ... }
+    T& current() override{ ...}
+};
+void MyAlgorithm() /* 算法 */
+{
+    MyCollection<int> mc;   
+    Iterator<int> iter= mc.GetIterator();   
+    for (iter.first(); !iter.isDone(); iter.next()){
+        cout << iter.current() << endl;
+    }
+}
 ```
 
 ​		**Chain of Resposibility:**
 
 ```c++
+/* 应用背景:在软件构建过程中,一个请求可能会被多个对象中的一个处理,如果显式指定,必然导致发送者和接收者之间的紧耦合,可以将这些对象连成一条链,并沿着这条链传递请求,直到有一个对象处理它为止 */
+enum class RequestType /* 请求的类型 */
+{
+    REQ_HANDLER1,
+    REQ_HANDLER2,
+    REQ_HANDLER3
+};
+class Reqest /* 请求类 */
+{
+    string description;
+    RequestType reqType;
+public:
+    Reqest(const string & desc, RequestType type) : description(desc), reqType(type) {}
+    RequestType getReqType() const { return reqType; }
+    const string& getDescription() const { return description; }
+};
+class ChainHandler{ /* 职责链抽象基类 */
+    ChainHandler *nextChain; /* 单向链表,指向下一个 */
+    void sendReqestToNextHandler(const Reqest & req){ /* 向下传递请求 */
+        if (nextChain != nullptr){
+            nextChain->handle(req);
+        }   
+    }
+protected:
+    virtual bool canHandleRequest(const Reqest & req) = 0;
+    virtual void processRequest(const Reqest & req) = 0;
+public:
+    ChainHandler() { nextChain = nullptr; } /* 构造 */
+    void setNextChain(ChainHandler *next) { nextChain = next; }
+    void handle(const Reqest & req){ /* 处理请求 */
+        if (canHandleRequest(req)){
+            processRequest(req);
+        }else{
+            sendReqestToNextHandler(req);
+        }
+    }
+};
+class Handler1 : public ChainHandler{ 
+protected:
+    bool canHandleRequest(const Reqest & req) override{ /* 判断是否是自己需要处理的类 */
+        return req.getReqType() == RequestType::REQ_HANDLER1;
+    }
+    void processRequest(const Reqest & req) override{
+        cout << "Handler1 is handle reqest: " << req.getDescription() << endl;
+    }
+};        
+class Handler2 : public ChainHandler{
+protected:
+    bool canHandleRequest(const Reqest & req) override{ /* 判断是否是自己需要处理的类 */
+        return req.getReqType() == RequestType::REQ_HANDLER2;
+    }
+    void processRequest(const Reqest & req) override{
+        cout << "Handler2 is handle reqest: " << req.getDescription() << endl;
+    }
+};
+class Handler3 : public ChainHandler{
+protected:
+    bool canHandleRequest(const Reqest & req) override{ /* 判断是否是自己需要处理的类 */
+        return req.getReqType() == RequestType::REQ_HANDLER3;
+    }
+    void processRequest(const Reqest & req) overrid
+    {
+        cout << "Handler3 is handle reqest: " << req.getDescription() << endl;
+    }
+};
+/* 使用 */
+int main(){
+    Handler1 h1;
+    Handler2 h2;
+    Handler3 h3;
+    h1.setNextChain(&h2); /* 构建职责链 */
+    h2.setNextChain(&h3);
+    Reqest req("process task ... ", RequestType::REQ_HANDLER3);
+    h1.handle(req); /* 处理请求,不是自己的类型则继续往下传递 */
+    return 0;
+}
 ```
 
-**行为变化:**
+**行为变化:**在软件构建过程中,组件行为变化经常导致组件本身的变化,则需要将组件的行为和组件本身进行解耦合
 
 ​		**Command:**
 
 ```c++
+/* 应用背景:在软件构建过程中,行为的请求者和实现者之间通常呈现紧耦合关系,但是在某些场景下需要对行为进行如:记录,撤销,重做,事务等操作,则需要将"行为对象化",以此来实现请求者和实现者之间的松耦合 */
+class Command /* 行为抽象基类 */
+{
+public:
+    virtual void execute() = 0;
+};
+class ConcreteCommand1 : public Command /* 行为1 */
+{
+    string arg;
+public:
+    ConcreteCommand1(const string & a) : arg(a) {}
+    void execute() override{
+        cout<< "#1 process..."<<arg<<endl;
+    }
+};
+class ConcreteCommand2 : public Command /* 行为2 */
+{
+    string arg;
+public:
+    ConcreteCommand2(const string & a) : arg(a) {}
+    void execute() override{
+        cout<< "#2 process..."<<arg<<endl;
+    }
+};
+class MacroCommand : public Command /* 行为3,组合行为 */
+{
+    vector<Command*> commands; /* 既可以接收自身,又可以接收行为1,2 */
+public:
+    void addCommand(Command *c) { commands.push_back(c); }
+    void execute() override{
+        for (auto &c : commands){
+            c->execute();
+        }
+    }
+};
+/* 使用 */
+int main()
+{
+    ConcreteCommand1 command1(receiver, "Arg ###"); 
+    ConcreteCommand2 command2(receiver, "Arg $$$");
+    MacroCommand macro;
+    macro.addCommand(&command1);
+    macro.addCommand(&command2);
+    macro.execute();
+}
 ```
 
 ​		**Visitor:**
 
 ```c++
+/* 应用背景:在软件构建中,存在某种需求,类的整体层次结构稳定不变,但其中的操作需要频繁的变化 */
+/* 整体类层次结构稳定不变 */
+class Element /* 抽象基类 */
+{
+public:
+    virtual void accept(Visitor& visitor) = 0; /* 第一次多态辨析 */
+    virtual ~Element(){}
+};
+class ElementA : public Element
+{
+public:
+    void accept(Visitor &visitor) override { 
+        visitor.visitElementA(*this);  /* 第二次多态辨析 */
+    }
+};
+class ElementB : public Element
+{
+public:
+    void accept(Visitor &visitor) override {
+        visitor.visitElementB(*this); /* 第二次多态辨析 */
+    }
+
+};
+class Visitor{ /* 抽象基类稳定不变 */
+public:
+    virtual void visitElementA(ElementA& element) = 0;
+    virtual void visitElementB(ElementB& element) = 0;
+    virtual ~Visitor(){}
+};
+/* 需要频繁变化的操作行为 */
+class Visitor1 : public Visitor{ /* 重写整个类层次结构中的所以行为 */
+public:
+    void visitElementA(ElementA& element) override{ 
+        cout << "Visitor1 is processing ElementA" << endl;
+    }    
+    void visitElementB(ElementB& element) override{
+        cout << "Visitor1 is processing ElementB" << endl;
+    }
+};
+/* 需要频繁变化的操作行为 */
+class Visitor2 : public Visitor{ /* 重写整个类层次结构中的所以行为 */
+public:
+    void visitElementA(ElementA& element) override{
+        cout << "Visitor2 is processing ElementA" << endl;
+    }
+    void visitElementB(ElementB& element) override{
+        cout << "Visitor2 is processing ElementB" << endl;
+    }
+};     
+/* 使用 */
+int main()
+{
+    Visitor2 visitor;
+    ElementB elementB;
+    elementB.accept(visitor); /* 多态的两次分发 */
+    ElementA elementA;
+    elementA.accept(visitor); /* 多态的两次分发 */
+    return 0;
+}
 ```
 
-**领域问题:**
+**领域问题:**在某些特定领域中存在某些频繁变化,但可以通过将其抽象为确定的语法规则,从而提供一般的通用性解决方案的情况
 
 ​		**Interpreter:**
 
 ```c++
+/* 应用背景:在某一特定领域中,存在类似的结构不断出现,且频繁变化的问题,可以将这一变化抽象为特定规则,并构建一个解析器来统一解析 */
+class Expression { /* 表达式抽象基类 */
+public:
+    virtual int interpreter(map<char, int> var)=0;
+    virtual ~Expression(){}
+};
+class VarExpression: public Expression { /* 变量表达式 */
+    char key;
+public:
+    VarExpression(const char& key){
+        this->key = key;
+    }
+    int interpreter(map<char, int> var) override {
+        return var[key];
+    }
+};
+class SymbolExpression : public Expression { /* 符号表达式提取基类 */
+protected:  /* 运算符左右两个参数 */
+    Expression* left;
+    Expression* right;
+public:
+    SymbolExpression( Expression* left,  Expression* right):
+        left(left),right(right){ }
+};
+class AddExpression : public SymbolExpression { /* 加法运算 */
+public:
+    AddExpression(Expression* left, Expression* right):
+        SymbolExpression(left,right){ }
+    int interpreter(map<char, int> var) override {
+        return left->interpreter(var) + right->interpreter(var);
+    }  
+};
+class SubExpression : public SymbolExpression { /* 减法运算 */
+public:
+    SubExpression(Expression* left, Expression* right):
+        SymbolExpression(left,right){ }
+    int interpreter(map<char, int> var) override {
+        return left->interpreter(var) - right->interpreter(var);
+    }
+};
+Expression* analyse(string expStr) { /* 规则解析器 */
+    stack<Expression*> expStack; 
+    Expression* left = nullptr;
+    Expression* right = nullptr;
+    for(int i=0; i<expStr.size(); i++){
+        switch(expStr[i]){
+            case '+':  /* 加法运算 */
+                left = expStack.top();
+                right = new VarExpression(expStr[++i]);
+                expStack.push(new AddExpression(left, right));
+                break;
+            case '-': /* 减法运算 */
+                left = expStack.top();
+                right = new VarExpression(expStr[++i]);
+                expStack.push(new SubExpression(left, right));
+                break;
+            default: /* 变量表达式 */
+                expStack.push(new VarExpression(expStr[i])); /* 将表达式不断压入堆栈 */
+        }
+    }
+    Expression* expression = expStack.top(); /* 栈顶就是最终计算结果的表达式 */
+    return expression;
+}
+void release(Expression* expression){ ... } /* 释放表达式树的节点内存... */
+/* 使用 */
+int main(int argc, const char * argv[]) {
+    string expStr = "a+b-c+d-e"; 	/* 一定语法规则的表达式 */
+    map<char, int> var;
+    var.insert(make_pair('a',5));
+    var.insert(make_pair('b',2));
+    var.insert(make_pair('c',1));
+    var.insert(make_pair('d',6));
+    var.insert(make_pair('e',10));
+    Expression* expression= analyse(expStr); /* 解析器解析 */
+    int result=expression->interpreter(var);  
+    cout<<result<<endl;
+    release(expression);  
+    return 0;
+}
 ```
 
