@@ -3650,3 +3650,142 @@ f(NULL);	/* 具体调用取决于NULL是否被typedef为0 */
 f(nullptr);	/* 调用f(void*) */
 ```
 
+​		统一的变量或对象初始化
+
+```c++
+/* 常用初始化方式有小括号(),大括号{},赋值= ,C++2.0可以支持统一的大括号{},初始化方式 */
+/* 编译器看到初始化的大括号{ },会制造一个initializer_list<T>,这是一个array<T,n>,如果存在构造函数接收一整个initializer_list<T>类型,则编译器会直接传递过去,负责会被分解,一个一个的传递过去 */
+int values[]{1,2,3};
+vector<int> v{2,3,4,5,7,11,13,17};
+vector<string> cities{ "aa","bb","cc" }; /* 存在接收整个initializer_list<T>的构造函数 */
+complex<double> c{4.0,3.0}
+
+int i;	 	/* 初值未定义 */
+int j{}; 	/* 初值为0 */
+int* p;		/* 初值未定义 */
+int* q{};	/* 初值为nullptr */
+int x2{5.0}; /* 错误或警告 */
+int x4={5.3};/* 错误或警告 */
+```
+
+**initializer_list:**
+
+```c++
+/* 大括号初始化initializer_list类,不包含array,但其指向一个array */
+template<class _E>
+class initializer_list
+{
+public:
+    typedef _E			value_type;
+    typedef const _E&	reference;
+    typedef const _E&	const_reference;
+    typedef size_t		size_type;
+    typedef const _E*	iterator;
+    typedef const _E*	const_iterator;
+private:
+    iterator	 	_M_array; /* 维护着迭代器指向背后的数据 */ 
+    size_type		_M_len;
+    /* 只有编译器可以调用到这里,维护着一个迭代器,指向背后的数组,真正初始化的数据在背后的array中 */
+    constexpr initializer_list(const_iterator __a,size_type __1)
+        :_M_array(__a),_M_len(__1){}
+public:
+    constexpr initializer_list() noexcept:_M_array(0),M_len(0)){}
+    constexpr size() const constexpr{ return _M_len; }
+    constexpr const_iterator begin() const noexcept { return _M_array; }
+    constexpr const_iterator end() const noexcept { return begin()-_M_len; }
+}
+class P{
+public:
+    P(int a,int b){ /* 构造函数 */
+        cout << "P(int,int),a="<<a<<",b="<<b<<end;
+    }
+    P(initializer_list<int> initlist){
+        cout << "P(initialzier_list<int>), values="
+        for(auto i: initliast){
+            cout << i << ' ';
+        }
+        cout << endl;
+    }
+}
+/* 使用 */
+P p(77,5);		/* 调用P(int a,int b) */
+P q{77,5};		/* 调用P(initializer_list<int> initlist) */
+```
+
+**range-based for statement:**
+
+```c++
+/* 语法规则 */
+for(decl:coll){
+    statement
+}
+/* 编译器底层实现 */
+for(auto _pos=coll.begin(), __end=coll.end(); __pos!=__end; ++__pos){
+    decl = *__pos;
+    statement
+}
+/* 使用 */
+vector<double> vec;
+...
+for(auto elem : vec){
+    cout << elem << endl;
+}
+for(auto& elem : vec){
+    elem *=3;
+}
+```
+
+**explicit关键字:**
+
+```c++
+/* explicit几乎只用于构造函数,用于告诉编译器该函数只能被明确调用 */
+struct Complex{
+    int real,imag;
+    /* Complex c2 = c1+5,这里的5可能被编译器隐式调用构造函数构造出一个新的Complex类 */
+    Complex(int re,int im=0):real(re),imag(im){} 
+    /* Complex c2 = c1+5,加了explicit关键字这里的5不会被编译器隐式转换 */
+   	explicit Complex(int re,int im=0):real(re),imag(im){} 
+    Complex operator+(const Complex& x){
+        return Complex((real+x.real),(imag+x.imag));
+    }
+}
+/* C++1.0只支持一个参数的隐式调用构造函数的类型转换 */
+/* C++2.0支持多个参数的隐式调用构造函数的类型转换 */
+```
+
+**=default,=delete关键字:**
+
+```c++
+/* C++规定如果一个类提供的构造函数,拷贝构造函数,拷贝赋值函数,析构函数,则编译器不在隐式提供默认的空版本 */
+/* =default关键字用于告诉编译器,继续提供默认的空版本函数,=delete关键字用于告诉编译器该函数不会在被使用 */
+class Foo{
+public:
+    Foo(int i):_i(i){ }
+    Foo() =default;	/* 要求编译器继续提供空版本的构造函数 */	
+    Foo(const Foo& x):_i(x._i){ }
+    Foo(const Foo&) =default;	/* 告诉编译器继续提供空的拷贝构造函数,但是由于已经存在,所以报错 */
+    Foo(const Foo&) =delete;	/* 告诉编译器不会使用拷贝构造函数,但是由于已经存在,所以报错 */
+    Foo& operator=(const Foo& x){ _i=x._i; return *this; } /* 拷贝赋值函数 */
+    /* 告诉编译器继续提供空的拷贝赋值函数,但是由于已经存在,所以报错 */
+    Foo& operator=(const Foo& x)=default 
+    /* 告诉编译器不会使用拷贝赋值函数,但是由于已经存在,所以报错 */
+    Foo& operator=(const Foo& x)=delete    
+    void fun1()=default; /* 错误,函数不能被default */
+    void fun2()=delete;	 /* 告诉编译器,该函数不会在被使用 */
+    ~Foo()=delete;	/* 析构对象时会出错 */
+    ~Foo()=default;	/* 告诉编译器继续提供默认的空的析构函数 */
+private:
+    int _i;
+}
+```
+
+**NoCopy:**
+
+```c++
+/* 删除 */
+struct NoCopy{
+    NoCopy(const NoCopy&)=delete; 
+    NoCopy& operator=(const NoCopy&)=delete;
+}
+```
+
