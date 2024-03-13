@@ -3779,13 +3779,3 @@ private:
 }
 ```
 
-**NoCopy:**
-
-```c++
-/* 删除 */
-struct NoCopy{
-    NoCopy(const NoCopy&)=delete; 
-    NoCopy& operator=(const NoCopy&)=delete;
-}
-```
-
