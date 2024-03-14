@@ -3779,3 +3779,55 @@ private:
 }
 ```
 
+**Alias Template:**
+
+```c++
+/* 给模板起一个别名,注意:别名不支持特化和偏特化 */
+template <typename T>
+using Vec = std::vector<T,MyAlloc<T>>;
+Vec<int> coll;
+
+/* #define和typedef均无法实现对模板类型起别名 */
+#define Vec<T> template<typename T> std::vector<T,MyAlloc<T>>;
+Vec<int> coll;	/* 错误:无法使用声明来定义变量 */
+/* typedef定义的类型必须要被明确 */
+typedef std::vector<int,MyAlloc<int>> Vec;	/* 错误:定义的变量无法传入模板参数 */
+```
+
+**Type Alias:**
+
+```c++
+/* 给一个类型起一个别名,与typedef功能一致 */
+//typedef void(*func)(int,int)
+using func = void(*)(int,int);		/* 给函数指针类型起一个别名func */
+/* 使用 */
+void example(int,int){
+    func fn = example;
+}
+/* 在模板中的使用 */
+template<typename T>
+struct Container{
+    using value_type = T; /* 给模板类型起个别名,等同于typedef T value_type */
+}
+```
+
+**template template parament:**
+
+```c++
+/* 普通的模板参数或编译器推导的模板参数,在类型使用之前"类型必须要是明确的",简言之,无法将一个模板类型作为模板参数传递给模板,需要使用模板的模板参数来解决 */
+template<typename T, template<class T> class Container> /* 模板参数中传入模板 */
+class XCls
+{
+private:
+    /* 常规模板参数在此处类型必须明确 */
+    Container<T> c; /* 模板的模板参数具体类型在此处还未明确 */
+public:
+    XCls(){
+        for(long i=0;i<SIZE;++i){
+            c.insert(c.end(),T());
+        }
+    }
+}   
+    
+```
+
