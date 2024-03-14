@@ -3819,15 +3819,108 @@ template<typename T, template<class T> class Container> /* 模板参数中传入
 class XCls
 {
 private:
-    /* 常规模板参数在此处类型必须明确 */
-    Container<T> c; /* 模板的模板参数具体类型在此处还未明确 */
+    /* 常规模板参数在此处具体类型必须明确 */
+    Container<T> c; /* 模板的模板参数具体类型在此处还未明确,但依然需要明确模板类型(一个还是两个模板参数) */
 public:
     XCls(){
         for(long i=0;i<SIZE;++i){
             c.insert(c.end(),T());
         }
+        output_static _data(T());
+        Container<T>c1(c);
+        Container<T>c2(std::move(c));
+        c1.swap(c2);
     }
 }   
-    
+template<typename _Tp,typename _Alloc=std::allocator<_Tp>>
+class vector:protected _vector_base<_Tp,Alloc>{ ... }
+/* 使用 */
+XCls<MyString, vector>c1; /* 错误:模板的模板无法识别模板的默认参数 */
+/* 给模板类型重新起别名 */
+template<typename T>
+using Vec=vector<T,allocator<T>>;
+template<typename T>
+using Lst=list<T,allocator<T>>;
+template<typename T>
+using Deq=deque<T,allocator<T>>;
+XCls<MyString, Vec>c1; /* 正确:别名确定了模板的模板参数具体模板类型 */
+```
+
+**noexcept:**
+
+```c++
+/* noexcept关键字用于明确的告诉编译器该函数不会抛出异常,且可通过判断条件来控制noexcept关键字是否有效 */
+void foo() noexcept; -> void foo() noexcept(true);
+/* 根据判断条件确定该函数是否会抛出异常 */
+void swap(Type& x,Type& y) noexcept(noexcept(x.swap(y))){ 
+    x.swap(y);
+}
+```
+
+**final:**
+
+```c++
+/* final关键字用于告诉编译器该类或者该虚函数是最后一个,不可在被继承或重写 */
+struct Base1 final{ };
+struct Derived1:Base1{ }; /* 错误:final修饰的子类是最后一个,不可被继承 */
+
+struct Base2{
+    virtual void f() final;
+};
+struct Derived2:Base2{
+    void f(); /* 错误:final修饰的虚函数不可在被重写 */
+}
+```
+
+**override:**
+
+```c++
+struct Base{
+    virtual void vfun(float){ ... }
+}	
+struct Derived2:Base{
+    virtual void vfun(float) override { ... } /* 用于明确的告诉编译器该函数是重写函数 */
+}
+```
+
+**decltype:**
+
+```c++
+/* decltype关键字用于获取表达式的类型 */
+map<string,float> coll;
+decltype(coll)::value_type elem; /* C++2.0后可以通过decltype获取类型 */
+map<string,float>::value_type elem; /* C++1.0只能通过内部定义获取类型 */
+
+/* 1,用于声明返回值类型 */
+template<typename T1,typename T2>
+/* decltype(x+y)不能写在前面,因为x,y变量此处还不可见,所有用auto替代 */
+auto add(T1 x,T2 y) -> decltype(x+y); /* 返回值类型是x+y */
+/* 2,用于获取对象类型 */
+typedef typename decltype(obj)::iterator iType; /* typdef typename T::iterator iType */
+/* 3,用于获取lambda表达式类型,面对lambda表达式我们只有对象而没有类型 */
+auto cmp = [](const Persion& p1,const Persion& p2){ ... };
+std::set<Person,decltype(cmp)> coll(cmp); /* decltype获取lambda表达式的具体类型 */
+```
+
+**Lambdas:**
+
+```c++
+/* C++2.0中引入了lambda表达式,其本质就是一个被写为inline属性的仿函数 */
+/* [...](...)mutable(opt) throwspec(opt) -> reType(opt){...} */
+auto I = []{ std::cout <<"lambda"<<std::endl;} /* 如果没有参数可省略() */
+
+int id = 0;
+auto f = [id]()mutable{ std::cout<<"id"<<id<<std::endl; ++id;}
+/* 编译器内部隐式实现如下 */
+class Functor{
+private:
+    int id; /* 拷贝外部的值 */
+public:
+    void operator()(){
+        std::cout<<"id"<<id<<std::endl;
+        ++id;
+    }
+}
+Functor f;
 ```
 
