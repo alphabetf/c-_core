@@ -3907,20 +3907,46 @@ std::set<Person,decltype(cmp)> coll(cmp); /* decltype获取lambda表达式的具
 ```c++
 /* C++2.0中引入了lambda表达式,其本质就是一个被写为inline属性的仿函数 */
 /* [...](...)mutable(opt) throwspec(opt) -> reType(opt){...} */
-auto I = []{ std::cout <<"lambda"<<std::endl;} /* 如果没有参数可省略() */
+/* []中可以是=(可值引用外部所以变量),&(引用的方式引用指定变量),直接写的变量则是值引用 */
+auto I = []{ std::cout <<"lambda"<<std::endl;} /* 如果没有参数且没有其他可选修饰则()可以省略 */
 
 int id = 0;
+/* mutable用于修饰值引用的变量是否可被修改,如下,如没有mutable则id不能进行++操作,否则编译报错 */
 auto f = [id]()mutable{ std::cout<<"id"<<id<<std::endl; ++id;}
-/* 编译器内部隐式实现如下 */
-class Functor{
-private:
-    int id; /* 拷贝外部的值 */
+
+/* lambda表达式的内部实现机制 */
+int tobefond = 5;
+auto lambdal=[tobefond](int val) ->bool{ return val==tobefond;}; 
+/* 内部隐式实现机制 */
+class UnNameLocalFunction
+{  	/* 注意:Lambda表达式没有默认构造函数和赋值函数 */
+    int localVar;
 public:
-    void operator()(){
-        std::cout<<"id"<<id<<std::endl;
-        ++id;
+    UnNameLocalFunction(int val):loaclVar(var){}
+    bool operator()(int var){
+        return val==tobefond; 
     }
+};
+UnNameLocalFunction lambda2(tobefond);
+/* 使用 */
+bool b1 = lambda1(5);
+bool b2 = lambda2(5);
+/* 使用 */
+template<class Key,class Compare=less<key>,class Alloc=alloc>
+class set{
+public:
+    ...
+    typedef Compare key_compare;
+    typedef Compare value_compare;
+private:
+    typedef rb_tree<key_type,value_type,identity<value_type>,key_compare,Alloc> rep_type;
+    rep_type t;	/* 内部维护着一个红黑树 */
+public:
+    set():t(Compare()){ } /* 这里会调用Compare的空构造函数,lambda表达式没有默认空构造函数 */
+    explicit set(const Compare& comp):t(comp){} /* 拷贝构造函数 */
 }
-Functor f;
+auto cmp= [](const Person& p1, const Person& p2){ ... };
+/* 注意:lambda表达式创建的对象没有提供默认空构造函数, */
+std::set<Person,decltype(cmp)> coll(cmp); /* 调用有参构造函数 */
 ```
 
