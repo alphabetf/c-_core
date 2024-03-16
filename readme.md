@@ -4074,6 +4074,28 @@ protected:
 /* 使用 */
 tuple<int,float,string>t(41,6.3,"nico");
 ```
+```c++
+/* 以组合的方式实现可变参数模板 */
+template<typename... Values>class tup;
+template<> class tup<>{ };
+template<typename Head,typename... Tail>
+class tup<Head,Tail...> /* 一个和一包 */
+{
+    typedef tup<Tail...>composited;
+protected:
+    composited m_tail; /* 利用剩余的一包组合 */
+    Head m_head;	/* 拆分出来的数据 */
+public:
+    tup(){ }
+    tup(Head v,Tail... vtail):m_tail(vtail...),m_head(v){} /* 递归组合 */
+    Haed head(){ return m_head;} /* 返回当前类结构存储的数据 */
+    composited& tail(){ return m_tail; } /* 返回当前类结构组合的下一级类存储结构 */
+};
+/* 使用 */
+tup<int,float,string>it1(41,6.3,"nico")
+cout<<it1.head()<<endl;
+cout<<it1.tail().head()<<endl;
+```
 
 ```c++
 /* 利用可变参数模板实现tuple类输出为指定格式 */
@@ -4097,28 +4119,5 @@ template<int MAX,typename... Args> /* 特化 */
 struct PRINT_TUPLE<MAX,MAX,Args...>{
     static void print(std::ostream& os,const tuple<Args...>& t){ } 
 };
-```
-
-```c++
-/* 以组合的方式实现可变参数模板 */
-template<typename... Values>class tup;
-template<> class tup<>{ };
-template<typename Head,typename... Tail>
-class tup<Head,Tail...> /* 一个和一包 */
-{
-    typedef tup<Tail...>composited;
-protected:
-    composited m_tail; /* 利用剩余的一包组合 */
-    Head m_head;	/* 拆分出来的数据 */
-public:
-    tup(){ }
-    tup(Head v,Tail... vtail):m_tail(vtail...),m_head(v){} /* 递归组合 */
-    Haed head(){ return m_head;} /* 返回当前类结构存储的数据 */
-    composited& tail(){ return m_tail; } /* 返回当前类结构组合的下一级类存储结构 */
-};
-/* 使用 */
-tup<int,float,string>it1(41,6.3,"nico")
-cout<<it1.head()<<endl;
-cout<<it1.tail().head()<<endl;
 ```
 
