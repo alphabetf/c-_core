@@ -3950,3 +3950,175 @@ auto cmp= [](const Person& p1, const Person& p2){ ... };
 std::set<Person,decltype(cmp)> coll(cmp); /* 调用有参构造函数 */
 ```
 
+**VariadicTempletes:**
+
+```c++
+/* 利用可变参数模板,对不定模板参数进行递归拆解 */
+void func(){ /* ... */} /* 处理最后一个模板参数 */
+template<typename T,typename... Types>
+void func(const T& firstArg, const Types&... args){ /* 一个和一包数据 */
+    /* firstArg */ /* 拿到第一个数据并处理 */
+    func(args...); /* 递归调用,依次取得数据 */
+}
+```
+
+```c++
+/* 利用可变参数模板,对不定模板参数进行递归拆解 */
+void printX(){ }
+template<typename T,typename... Types>  /* 注意:这是模板的特化版本 */
+void printX(const T& firstArg, const Types&... args)
+{
+    cout << firstArg<<endl; /* 取得第一个参数 */
+    printX(args...);	/* 递归处理剩余的一包数据 */
+}
+template<typename... Types> /* 注意:这才是模板的泛化版本 */
+void printX(const Types&... args)
+{ /* ... */ }
+/* 使用 */
+print(7.5,"hello",bitset<16>(337),42);
+```
+
+```c++
+/* 利用可变参数模板,实现printf函数 */
+void printf(const char *s){  /* 剩余部分可能是/r/n */
+    while(*s){
+        if(*s == '%' && *(++s) != '%'){ /* 拿完所有数依然还存在%,则认为错误 */
+            throw std::runtime_error("error")
+        }
+        std::cout << *s++;
+    }
+}
+template<typename T,typename... Args>
+void printf(const char* s,T value, Args... args){
+    while(*s){
+        if(*s == '%' && *(++s) != '%'){
+            std::cout << value;  /* 拿到一个 */
+            printf(++s,args...); /* 将剩余的一包继续进行递归处理 */
+            return;
+        }
+        std::cout << *s++;
+    }
+    throw std::logic_erroe("error");	/* 传入的字符串是空或没有可解析的% */
+}
+/* 使用 */
+int* pi = new int;
+printf("%d%s%p%f\r",15,"aa",pi,1.1);
+```
+
+```c++
+/* 类型相同使用initializer_list<T>来实现max函数 */
+cout << max({57,48,60,100,20,18}) << endl; /* 传入一个initializer_list */
+template<typename _Tp>
+inline _Tp max(initializer_list<_Tp> __1){
+    return *max_element(__1.begin(),__1.end());
+}
+template<typename _ForwardIterator>
+inline _ForwardIterator max_element(_ForwardIterator __first,_ForwardIterator __last)
+{
+    return __max_element(__first,__last,__iter_less_iter()); 
+}
+template<typename _ForwardIterator,typename _Compare>
+_ForwardIterator __max_element(_ForwardIterator __first,_ForwardIterator __last,
+                               _Compare __comp){
+    if(__first==__last) return __first;
+    _ForwardIterator __result=__first;
+    while(++__first != __last){
+        if(__comp(result,_first)){
+            __result = __first;
+        }
+    }
+    return __result; /* 返回最终比较结果 */
+}
+inline _Iter_less_iter __iter_less_iter(){
+    return _Iter_less_iter(); /* 返回仿函数对象 */
+}
+struct _Iter_less_iter{
+    template<typename _Iterator1,typename _Iterator2>
+    bool operator(_Iterator1 n__it1, _Iterator1 it2) const {
+        return *__it1 < *__it2;
+    }
+}
+```
+
+```c++
+/* 类型相同,利用可变参数模板实现max函数 */
+int maximum(int n){
+    return n;
+}
+template<typename.. Args>
+int maximum(int n,Args... args){ /* 传入参数会被拆分为一个和一包 */
+    return std::max(n,maximum(args...)); /* std::max是标准库的比较函数 */
+}
+/* 使用 */
+cout << maximum(57,48,60,100,20,18) << endl;
+```
+
+```c++
+/* 继承方式,利用可变参数模板实现tuple类 */
+template<typename... Values> class tuple; /* 模板的泛化版本声明 */
+template<> class tuple<>{} /* 空参数的模板特化版本 */
+template<typename Head, typename... Tail> /* 模板的特化版本 */
+class tuple<Head,Tail...> :private tuple<Tail...>
+{
+    typedef tuple<Tail...> inherited;
+public:
+    tuple(){ }	/* 最后一个空参数调用 */
+    /* 利用构造机制,实现传入参数的分解 */
+    tuple(Head v,Tail... vtail):m_head(v),inherited(vtail...){ }
+    typename Head::type head(){ return m_head;} /* 返回当前类结构存储的数据 */
+    //Head head(){ return m_head };	/* Head本身就是模板推导出的类型 */
+    inherited& tail() {return *this;} /* 返回当前类结构的下一级类存储结构地址 */
+protected:
+    Head m_head;	/* 从可变参数中拆分的数据 */
+}
+/* 使用 */
+tuple<int,float,string>t(41,6.3,"nico");
+```
+
+```c++
+/* 利用可变参数模板实现tuple类输出为指定格式 */
+/* 输出为[[7.5,hello,00000010110] */
+cout << make_tuple(7.5,string("hello"),bitset<16>(377)) << endl;
+
+template<typename... Args>
+ostream& operator<<(ostream& os, const tuple<Args...>& t){
+    os<< "[" /* sizeof...()用于获取不定模板参数个数 */
+        PRINT_TUPLE<0,sizeof...(Args),Args...>::print(os,t);
+    return os<<"]";
+}
+template<int IDX,int MAX,typename... Args>
+struct PRINT_TUPLE{ /* get<index>(t)获取tuple中第index个元素 */
+    static void print(ostream& os, const tuple<Args...>& t){
+        os<<get<IDX(t)<<(IDX+1 == MAX ? "":",");
+        PRINT_TUPLE<IDX+1,MAX,Args...>::print(os,t); /* 递归分包输出 */
+    }
+}; 
+template<int MAX,typename... Args> /* 特化 */
+struct PRINT_TUPLE<MAX,MAX,Args...>{
+    static void print(std::ostream& os,const tuple<Args...>& t){ } 
+};
+```
+
+```c++
+/* 以组合的方式实现可变参数模板 */
+template<typename... Values>class tup;
+template<> class tup<>{ };
+template<typename Head,typename... Tail>
+class tup<Head,Tail...> /* 一个和一包 */
+{
+    typedef tup<Tail...>composited;
+protected:
+    composited m_tail; /* 利用剩余的一包组合 */
+    Head m_head;	/* 拆分出来的数据 */
+public:
+    tup(){ }
+    tup(Head v,Tail... vtail):m_tail(vtail...),m_head(v){} /* 递归组合 */
+    Haed head(){ return m_head;} /* 返回当前类结构存储的数据 */
+    composited& tail(){ return m_tail; } /* 返回当前类结构组合的下一级类存储结构 */
+};
+/* 使用 */
+tup<int,float,string>it1(41,6.3,"nico")
+cout<<it1.head()<<endl;
+cout<<it1.tail().head()<<endl;
+```
+
