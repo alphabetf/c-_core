@@ -4089,6 +4089,7 @@ public:
     tup(){ }
     tup(Head v,Tail... vtail):m_tail(vtail...),m_head(v){} /* 递归组合 */
     Haed head(){ return m_head;} /* 返回当前类结构存储的数据 */
+    /* 返回引用,否则会产生拷贝 */
     composited& tail(){ return m_tail; } /* 返回当前类结构组合的下一级类存储结构 */
 };
 /* 使用 */
@@ -4119,5 +4120,142 @@ template<int MAX,typename... Args> /* 特化 */
 struct PRINT_TUPLE<MAX,MAX,Args...>{
     static void print(std::ostream& os,const tuple<Args...>& t){ } 
 };
+```
+
+**右值引用:RvalueReferences**
+
+```c++
+/* C++2.0新特性,是一种新的引用类型,用于解决一些非必要性的拷贝 */
+/* 左值:Lvalue,既可以出现在表达式左侧,又可以出现在表达式右侧 */
+/* 右值:Rvalue,只能出现在表达式右侧 */
+int a = 9;  /* 所有具体存储空间的变量都是左值 */
+int b = 4;
+a = b;		/* 左值既可以放在表达式左边也可以放在表达式右边 */
+b = a;
+a = a+b;
+a+b = 42;  /* 错误:a+b的结果为临时匿名变量,临时变量只能做右值,只能出现在右侧 */
+/* 结论:所有匿名的临时变量或临时变量都是右值,只能出现在表达式右侧  */
+```
+
+```c++
+/* 右值只能出现在右侧,不可对右值取引用 */
+int foo(){ return 5; }
+...
+int x = foo();		/* Ok */
+int* p = &foo();	/* 错误:foo()的返回值5是临时匿名对象,是右值,不可对右值取引用 */
+foo() = 7;			/* 错误:返回值5是临时对象,是右值,不可在左侧 */
+```
+
+**右值引用使用语法:**
+
+```c++
+class MyString
+{
+private:
+    char* _data;
+    ...
+public:
+    MyString& operator=(const MyString& str){ /* 拷贝赋值函数 */
+        ...
+      	return *this;
+    }
+    MyString& operator=(MyString&& str) noecxept{ /* move拷贝赋值函数 */
+        ...
+        return *this;   
+    }
+    ...
+}
+```
+
+
+
+
+
+
+
+```c++
+class MyString{
+public:
+    static size_t DCtor;	/* 默认构造函数调用次数 */
+    static size_t Ctor;		/* 构造函数调用次数 */
+    static size_t CCtor;	/* 拷贝构造函数调用次数 */
+    static size_t CAsgn;	/* 拷贝赋值函数调用次数 */
+    static size_t MCtor;	/* move构造函数 */
+    static size_t MAsgn;	/* move赋值函数 */
+    static size_t Dtor;		/* 析构函数 */
+private:
+    char* _data;
+    size_t _len;
+    void _init_data(const char* s){
+        _data = new char[_len+1];
+        memcpy(_data,s,_len);
+        _data[_len] = '\0';
+public:
+     /* 默认构造函数 */
+     MyString():_data(NULL),_len(0){
+         ++DCtor;
+     }
+     /* 普通构造函数 */
+     MyString(const char* p):_len(strlen(p)){
+         ++Ctor;
+         _init_data(p);
+     }
+     /* 拷贝构造函数 */
+     MyString(const MyString& str):_len(str._len){
+         ++CCtor;
+         _init_data(str._data);
+     }
+     /* 拷贝赋值函数 */
+     MyString& operator=(const MyString& str){
+         ++CAsgn;
+         if(this != &str){
+             if(_data) delete _data;
+             _len = str._len;
+             _init_data(str._data);	/* 深拷贝 */
+         }else{
+             
+         }
+         return *this;
+     }
+     /* move构造函数 */
+     MyString(MyString&& str) noexcept:_data(str._data),_len(str._len){
+         ++MCtor;	/* 需要确保传入的对象不在会被使用 */
+         str._len = 0;
+         str._data = NULL;
+     }
+     /* move赋值函数 */
+     MyString& operator=(MyString&& str) noexcept {
+         ++MAsgn;
+         if(this != &str){ /* 需要确保传入的对象不在会被使用 */
+             if(_data) delete _data;
+             _len = str._len;
+             _data = str._data;
+             str.len = 0;
+             str._data = null;
+		 }
+         return *this;
+     }
+     /* 虚析构函数 */
+     virtual ~MyString(){
+         if(_data){
+             delete _data;
+         }
+     }
+     bool operator<(const MyString& rhs) const{
+         return std::string(this->_data) < std::string(rhs._data);
+     }
+     bool operator==(const MyString& rhs) const {
+          return std::string(this->_data) = std::string(rhs._data);
+     }
+};
+size_t MyString::DCtor = 0;
+size_t MyString::Ctor = 0;
+size_t MyString::CCtor = 0;    
+size_t MyString::CAsgn = 0;
+size_t MyString::MCtor = 0;
+size_t MyString::MAsgn = 0;
+size_t MyString::Dtor = 0;
+/* 使用 */
+std::move(c1)	/* 调用move构造函数 */
 ```
 
