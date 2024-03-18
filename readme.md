@@ -1,4 +1,4 @@
- b##### C++核心
+#### C++核心
 
 在类中写的简短的成员函数实现，默认会自动隐式加上inline关键字，
 
@@ -4292,5 +4292,56 @@ vector(const vector&& __x): /* move版本的拷贝构造函数 */
 {	/* 此处并没有创建内存,仅仅只是交换了存储数据指针 */
     this->_M_impl._M_swap_data(__x._M_impl);
 }
+```
+
+**不完整的右值传递:**
+
+```c++
+void process(int& i){
+    cout << "process(int& i)"<< i << endl;
+}
+void process(int&& i){
+    cout << "process(int&& i)"<< i << endl;
+}
+void forward(int&& i){  /* 右值传入 */
+    cout << "forward(int&& i)" << i << endl;
+    process(i)	/* 传入的右值变成左值 */
+}
+```
+
+**完整的右值传递:**
+
+```c++
+template<typename _Tp>
+constexpr _Tp&& forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+{
+    return static_cast<_Tp&&>(__t); /* 将非右值强制转换为右值 */
+}
+template<typename _Tp>
+constexpr _Tp&& forward(typename std::remove_reference<_Tp>::type&& __t) noexcept
+{
+    return static_cast<_Tp&&>(__t); /* 将右值强制转换为右值 */
+}
+template<typename _Tp> 
+constexpr typename std::remove_reference<_Tp>::type&& move(_Tp&& __t) noexcept
+{
+    return static_cast<typename std::remove_reference<_Tp>::type&&>(__t);
+}
+/* 完整的右值传递使用 */
+template<typename T1,typename T2>
+void functionA(T1&& t1,T2&& t2){
+    functionB(std::forward<T1>(t1),
+              std::forward<T2>(t2));
+}
+```
+
+**const与constexpr的区别:**
+
+```c++
+/* 在C++1.0之前const的语义是"只读""常量",语义不清晰,存在语义重复,所以2.0引入新的关键字constexpr */
+/* C++2.0之后:const的确定语义是"只读变量",在"运行时"确定具体数值
+			 constexpr的确定语义是"只读常量",在"编译时"即可确定数值*/
+/* constexpr关键字出现主要是出于对性能的优化,减少运行时的执行 */
+/* 注意:constexpr修饰函数返回值时,返回值不一定是编译期常量,要看函数出入参数是否是编译期常量 */
 ```
 
