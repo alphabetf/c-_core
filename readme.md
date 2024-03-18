@@ -4365,7 +4365,7 @@ Complex* pc;
 try{
     void* mem = operator new(sizeof(Complex),buf); /* 在指定内存处创建对象 */
     pc = static_cast<Complex*>(mem);
-    pc->Complex::Complex(1,2);	/* 调用构造函数初始化创建的对象 */
+    pc->Complex::Complex(1,2);	/* 调用构造函数来初始化创建的对象 */
 }catch(std::bad_alloc){
     ...
 }
