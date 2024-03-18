@@ -4167,11 +4167,7 @@ public:
 }
 ```
 
-
-
-
-
-
+**右值引用的使用:**
 
 ```c++
 class MyString{
@@ -4217,13 +4213,13 @@ public:
          }
          return *this;
      }
-     /* move构造函数 */
+     /* move构造函数,move版本的需要noexcept,否则vector成长时可能不会被调用 */
      MyString(MyString&& str) noexcept:_data(str._data),_len(str._len){
          ++MCtor;	/* 需要确保传入的对象不在会被使用 */
          str._len = 0;
          str._data = NULL;
      }
-     /* move赋值函数 */
+     /* move赋值函数,move版本的需要noexcept,否则vector成长时可能不会被调用 */
      MyString& operator=(MyString&& str) noexcept {
          ++MAsgn;
          if(this != &str){ /* 需要确保传入的对象不在会被使用 */
@@ -4231,13 +4227,13 @@ public:
              _len = str._len;
              _data = str._data;
              str.len = 0;
-             str._data = null;
+             str._data = null; /* 避免析构时删除指针指向的数据 */
 		 }
          return *this;
      }
      /* 虚析构函数 */
      virtual ~MyString(){
-         if(_data){
+         if(_data){ /* 此处必须判断null,因为move版本偷完后会将指针设为null */
              delete _data;
          }
      }
@@ -4255,7 +4251,46 @@ size_t MyString::CAsgn = 0;
 size_t MyString::MCtor = 0;
 size_t MyString::MAsgn = 0;
 size_t MyString::Dtor = 0;
+ 
+#include<typeinfo> /* typeid() */
+template<typename T>
+void output_static_data(const T& myStr){
+    cout<<typeid(myStr).name()<<"--"<<endl;
+    cout<<"CCtor="<<T::CCtor<<endl;
+}   
+template<typename M>
+void test_moveable(M c,long& value){
+    char buf[10];
+    /* 容器值类型 */
+    typedef typename iterator_traits<typename M::iterator>::value_type Vtype; 
+    clock_t timeStart = clock();
+    for(long i = 0; i< value; i++){
+        snprintf(buf,10,"%d",rand()); /* 生成随机数 */
+        auto ite = c.end;
+        c.insert(ite,Vtype(buf)); /* 插入临时匿名对象,会调用move版本的insert函数 */
+    }
+    cout<<"milli-seconds:"<<(clock()-timeStart)<<endl;
+    cout<<"size()="<<c1.size()<<endl;
+    output_static_data(*(c1.begin()));
+    /* 对整个容器的搬移 */
+    M c11(c1);  /* 会产生大量内存创建和数据搬移 */
+    M C12(std::move(c1)); /* 调用move版本的拷贝构造,需要确保后面不会在使用c1 */
+    c11.swap(c12);
+}
 /* 使用 */
-std::move(c1)	/* 调用move构造函数 */
+test_moveable(vector<MyString>(),30000000L);
+/* vector容器自身的拷贝构造 */
+vector(const vector& __x): /* 普通拷贝构造函数 */
+    _Base(__x.size(),_Alloc_traits::__S_select_on_copy(__x._M_get_Tp_allicator()))
+{   /* 此处会创建内存,并对数据执行深拷贝 */
+	this->_M_impl._M_finish=std::__uninitialized_copy_a(__x.begin(),__x.end(),
+                                                       this->_M_impl._M_start,
+                                                       _M_get_Tp_allocator());        
+}
+vector(const vector&& __x): /* move版本的拷贝构造函数 */
+    _Base(std::move(__x))
+{	/* 此处并没有创建内存,仅仅只是交换了存储数据指针 */
+    this->_M_impl._M_swap_data(__x._M_impl);
+}
 ```
 
