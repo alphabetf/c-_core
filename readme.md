@@ -3742,7 +3742,7 @@ for(auto& elem : vec){
 struct Complex{
     int real,imag;
     /* Complex c2 = c1+5,这里的5可能被编译器隐式调用构造函数构造出一个新的Complex类 */
-    Complex(int re,int im=0):real(re),imag(im){} 
+    //Complex(int re,int im=0):real(re),imag(im){} 
     /* Complex c2 = c1+5,加了explicit关键字这里的5不会被编译器隐式转换 */
    	explicit Complex(int re,int im=0):real(re),imag(im){} 
     Complex operator+(const Complex& x){
@@ -3759,7 +3759,7 @@ struct Complex{
 /* C++规定如果一个类提供的构造函数,拷贝构造函数,拷贝赋值函数,析构函数,则编译器不在隐式提供默认的空版本 */
 /* =default关键字用于告诉编译器,继续提供默认的空版本函数,=delete关键字用于告诉编译器该函数不会在被使用 */
 class Foo{
-public:
+public: /* 构造函数可以有重载版本,拷贝构造,拷贝赋值只能有一个 */
     Foo(int i):_i(i){ }
     Foo() =default;	/* 要求编译器继续提供空版本的构造函数 */	
     Foo(const Foo& x):_i(x._i){ }
