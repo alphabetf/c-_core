@@ -4345,3 +4345,29 @@ void functionA(T1&& t1,T2&& t2){
 /* 注意:constexpr修饰函数返回值时,返回值不一定是编译期常量,要看函数出入参数是否是编译期常量 */
 ```
 
+#### 内存管理机制:
+
+**placement new:**
+
+```c++
+/* 两个参数的placement new(), 实现在已经分配好的指定内存处创建对象 */
+#include <new>
+char* buf=new char[sizeof(Complex)*3];		/* 创建内存 */
+Complex* pc = new(buf) Complex(1,2);		/* 在指定内存处创建对象 */
+...
+delete [] buf;
+/* placement new两个参数的重载实现 */
+void* operator new(size_t,void* loc){
+    return loc;  /* 直接返回指定地址 */
+}
+/* Complex* pc = new(buf) Complex(1,2),这段代码编译器会将其隐式转换为如下形式 */
+Complex* pc;
+try{
+    void* mem = operator new(sizeof(Complex),buf); /* 在指定内存处创建对象 */
+    pc = static_cast<Complex*>(mem);
+    pc->Complex::Complex(1,2);	/* 调用构造函数初始化创建的对象 */
+}catch(std::bad_alloc){
+    ...
+}
+```
+
