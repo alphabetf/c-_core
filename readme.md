@@ -4399,11 +4399,34 @@ const int Screen::screenChunk = 24;
 void* Screen::operator new(size_t size){
     Screen* p;
     if(!freeStore){ /* 内存池中的内存已经用完,一次申请screenChunk个内存块 */
-        
+        size_t chunk = screenChunk*size;
+        freeStore = p = reinterpret_cast<Screen*>(new char[chunk]);
+        /* 构建一个链表,将申请的内存用单向链表串接起来 */
+        for(;p!=&freeStore[screenChunk-1];++p){
+            p->next = p+1;
+        }
+        p->next = 0;
     }
     p = freeStore;
     freeStore = freeStore->next; /* 空闲链表头指向下一个内存块 */
     return p;		/* 返回当前链表头处内存块 */
+}
+void Screen::operator delete(void* p, size_t){
+    /* 将要释放的内存,插入到链表头部 */
+    (static_cast<Screen*>(p))->next = freeStore;
+    freeStore = static_cast<Screen*>(p);
+}
+/* 使用 */
+size_t const N = 100;
+Screen* p[N];
+for(int i = 0; i < 10; i++){
+    p[i] = new Screen(i);
+}
+for(int i = 10; i<10; i++){ /* 输出前10对象的地址,其间隔为8 */
+    cout << p[i] << endl;
+}
+for(int i = 0; i < N; ++i){
+    delete p[i];
 }
 ```
 
