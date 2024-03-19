@@ -4430,3 +4430,80 @@ for(int i = 0; i < N; ++i){
 }
 ```
 
+**per-class2内存管理:**
+
+```c++
+/* 优化per-class1内存管理,per-class1每个对象多占用了一个指针内存,用于维护单向链表,per-class2通过利用union来将数据和链表指针重叠,在内存块空闲时union内存用来维护指针,当被分配使用时,用于存储用户数据 */
+class Airplane{
+private:
+    struct AirplanRep{ /* 数据类型声明 */
+        unsigned long miles;
+        char type;	
+    }
+private:
+    union{ /* 匿名union变量,注意此处不是声明,是定义匿名变量 */
+        AirplanRep rep;  /* 让用户数据和链表指针公用同一块内存 */
+        Airplane* next;  /* 嵌入式指针设计方式 */
+    }
+public:
+    unsigned long getMiles(){ return rep.miles; }
+    char getType(){ return rep.type; }
+    void set(unsigned long m,char t){
+        rep.miles = m; rep.type = t;
+    }
+public:
+    /* 重写operator new&operator delete最好为static属性的,因为在类完成构建之前,成员函数不应该被调		 用,但是静态函数可以,虽然次处是由编译器来调用 */
+    static void* operator new(size_t size);
+    static void operator delete(void* deadObject, size_t size);
+private:
+    static const int BLOCK_SIZE; /* 一次申请的内存块数量 */
+    static Airplane* headOfFreeList;	/* 已经申请的内存的空闲链表头 */
+}
+Airplane* Airplane::headOfFreeList;
+const int Airplane::BLOCK_SIZE = 512;
+
+void* Airplane::operator new(size_t size){
+    if(size!=sizeof(Airplane)){ /* 如果有继承发生,类大小会改变,此处不处理此情况 */
+        return ::operator new(size);
+    }
+    Airplane* newBlock = static_cast<Airplane*>* p = headOfFreeList;
+    if(p){ /* 如果内存池中有空闲内存块,则将链表头下移,返回一个内存块 */
+        headOfFreeList = p->next;
+    }else{ /* 内存池中没有空闲内存块,在申请一段内存池 */
+        Airplane* newBlock = static_cast<Airplane*> 
+            (::operator new(BLOCK_SIZE*sizeof(Airplane)));
+        /* 跳过第一个内存块,将其余空闲内存块串成链表 */
+        for(int i=1; i<BLOCK_SIZE-1; i++){
+            newBlock[i].next = &newBlock[i+1];
+        }
+        newBlock[BLOCK_SIZE-1].next = 0;
+        headOfFreeList = &newBlock[1]; /* 更新空闲链表头 */
+        p = newBlock; /* 取得第一个内存块地址 */
+    }
+    return p;
+}
+void Airplane::operator delete(void* deadObject, size_t size){
+    if(deadObject == 0) return;
+    if(size != sizeof(Airplane)){ /* 如果有继承发生 */
+        ::operator delete(deadObject);
+        return;
+    }
+    Airplane* carcass = static_cast<Airplane*>(deadObject);
+    carcass->next = headOfFreeList; /* 将内存归还到内存池中 */
+    headOfFreeList = carcass;
+}
+/* 使用 */
+size_t const N = 100;
+Airplane* p[N];
+for(int i = 0; i < N; ++i){
+    p[i] = new Airplane;
+}
+p[1]->set(100,'a');
+for(int i = 0; i < 10; ++i){ /* 输出前10个对象的地址,其间隔为8 */
+    cout << p[i] << endl;
+}
+for(int i = 0; i < N; ++i){
+    delete p[i];
+}
+```
+
