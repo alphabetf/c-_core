@@ -4507,3 +4507,85 @@ for(int i = 0; i < N; ++i){
 }
 ```
 
+**per-class3内存管理:**
+
+```c++
+/* 优化per-class2,将内存管理部分抽离出来,避免为每一个类都重写一个operator new&operator delete,提高代码的复用 */
+class allocator
+{
+private:
+    struct obj{ /* 当分配的内存块空闲时,next指针用于维护单向链表,当被使用时,用于存储数据 */
+        struct obj* next; /* 嵌入式指针 */
+    }
+public:
+    void* allocate(size_t);
+    void deallocate(void*, size_t);
+private:
+    obj* freeStore = nullptr; /* 指向链表头 */
+    const int CHUNK = 5; /* 一次分配5个内存块 */
+}
+void* allocator::allocate(size_t size){
+    obj* p;
+    if(!freeStore){ /* 内存池中的空闲内存已使用完 */
+        size_t chunk = CHUNK*size;
+        /* 将内存块转换为obj类型,方便进行链表串接 */
+        freeStore = p =(obj*)malloc(chunk);
+        for(int i=0; i<(CHUNK-1);i++){ /* 串接成单向链表 */
+			p->next = (obj*)((char*)p+size);
+            p = p->next;
+        }
+        p->next = nullptr;
+    }
+    p = freeStore;	/* 返回链表头处内存块 */
+    freeStore = freeStore->next; /* 将链表头下移 */
+    return p;
+}
+void allocator::deallocate(void*p, size_t){
+    ((obj*)p)->next = freeStore; /* 将内存块转换为obj后归还给内存池 */
+    freeStore = (obj*)p;
+}
+/* 使用 */
+class Foo{
+public:
+    long L;
+    string str;
+    static allocator myAlloc; /* 维护一个静态分配器 */
+public:
+    Foo(long l):L(l){}
+    static void* operator new(size_t size){
+        return myAlloc.allocate(size);  /* 调用分配器进行内存管理 */
+    }
+    static void operator delete(void* pdead, size_t size){
+        return myAlloc.deallocate(pdead,zise);
+    }
+}
+allocator Foo::myAlloc;
+```
+
+**per-class4内存管理:**
+
+```c++
+/* 继续优化per-class3,每一个类都需要包含一个静态的allocator分配器,和调用分配器成员函数进行内存管理,这些操作都是重复的,可以将其定义为宏,减少重复书写 */
+//DECLARE_POOL_ALLOC
+#define DECLARE_POOL_ALLOC()\
+public:\
+	void* operator new(size_t size){ return myAlloc.allocate(size);}\
+	void operator delete(void* p){ myAlloc.deallocate(p,0);}\
+protected:\
+	static allocator myAlloc;
+
+//IMPLEMENT_POOL_ALLOC
+#define IMPLEMENT_POOL_ALLOC(class name)\
+allocator class_name::myAlloc;
+/* 使用 */
+class Foo{
+    DECLARE_POOL_ALLOC()
+public:
+    long L;
+    string str;
+public:
+    Foo(long l):L(l){}
+};
+IMPLEMENT_POOL_ALLOC(Foo)
+```
+
