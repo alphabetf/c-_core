@@ -4371,3 +4371,39 @@ try{
 }
 ```
 
+**per-class1内存分配:**
+
+```c++
+/* 目的:设计一个类来管理自身分配的内存,以此来减少底层malloc的调用次数,和内存分配时所产生的多余cookice所占用的字节数量 */
+#include <cstddef>
+#include <iostream>
+using namespace std;
+
+class Screen{
+public:
+    Screen(int x):i(x){};
+    int get(){ return i;}
+    /* 重写类的内存分配和释放 */
+    void* operator new(size_t);
+    void operator delete(void*, size_t);
+private:
+    Screen* next; /* 单向链表,指向下一个内存块 */
+    static Screen* freeStore; /* 指向空闲链表的头 */
+    static const int screenChunk; /* 一次申请的内存块数量 */
+private:
+    int i;		/* 数据 */
+};
+Screen* Screen::freeStore = 0;
+const int Screen::screenChunk = 24;
+
+void* Screen::operator new(size_t size){
+    Screen* p;
+    if(!freeStore){ /* 内存池中的内存已经用完,一次申请screenChunk个内存块 */
+        
+    }
+    p = freeStore;
+    freeStore = freeStore->next; /* 空闲链表头指向下一个内存块 */
+    return p;		/* 返回当前链表头处内存块 */
+}
+```
+
