@@ -3777,6 +3777,8 @@ public: /* 构造函数可以有重载版本,拷贝构造,拷贝赋值只能有�
 private:
     int _i;
 }
+/* 注意:=delete还可以作用于operator delete/delete[]和operator new/new[],
+   这样对象就无法被创建/删除 */
 ```
 
 **Alias Template:**
@@ -4587,5 +4589,24 @@ public:
     Foo(long l):L(l){}
 };
 IMPLEMENT_POOL_ALLOC(Foo)
+```
+
+**new handler:**
+
+```c++
+/* operator new分配内存失败时会抛出异常,在抛出异常之前会调用new handler处理函数进行处理 */
+void* operator new(size_t size, const std::nothrow_t& ) _THROW0()
+{
+    void* p;
+    while((p=malloc(size)) == 0){
+        _TRY_BEGIN
+            if(_callnewh(size)==0) break; /* 当内存分配失败时,会不断调用new handler处理函数 */
+        _CATCH(std::bad_alloc) return(0);
+        _CATCH_END
+    }
+    return(p);
+}
+typedef void(*new_handler)();	/* new handler异常处理函数类型 */
+new_handler set_new_handler(new_handler p) throw();	/* 实在自定义new handler异常处理函数 */
 ```
 
