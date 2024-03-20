@@ -4610,3 +4610,16 @@ typedef void(*new_handler)();	/* new handler异常处理函数类型 */
 new_handler set_new_handler(new_handler p) throw();	/* 实在自定义new handler异常处理函数 */
 ```
 
+**std::alloc:**
+
+```c++
+#include <cstdlib>
+#include <cstddef>
+#include <new>
+#define __THROW_BAD_ALLOC \
+		err<<"out of memory"; exit(1)
+
+```
+
+
+
