@@ -4618,7 +4618,44 @@ new_handler set_new_handler(new_handler p) throw();	/* 实在自定义new handle
 #include <new>
 #define __THROW_BAD_ALLOC \
 		err<<"out of memory"; exit(1)
-
+/* 第一级分配器 */
+template<int inst>
+class __malloc_alloc_template{ /* 一级分配器是直接调用malloc进行内存分配,不进行内存管理 */
+private:
+    /* 静态变量声明 */
+    static void* oom_malloc(size_t);  
+    static void* oom_realloc(void*, size_t);
+    static void (*__malloc_alloc_oom_handler)();	/* 内存分配失败时的回调处理 */
+public:
+    static void* allocate(size_t n){ 
+        void *result = malloc(n);	/* 直接调用malloc进行内存分配 */
+        if(0==result){
+            result = oom_malloc(n);
+        }
+        return result;
+    }
+    static void deallocate(void* p, size_t /*n*/){
+        free(p);
+    }
+    static void* reallocate(void* p,size_t /*old_sz*/,size_t new_sz){
+        void* result = realloc(p,new_sz); /* 直接调用realloc() */
+        if(0==result) result = oom_realloc(p,new_sz);
+        return result;
+    }
+    /* typedef void(*H)();
+   	   H set_malloc_handler(H f); */
+    static void(*set_malloc_handler(void(*f)()))(){
+        void (*old)() = __malloc_alloc_oom_handler;	/* 记录旧的new handler */
+    	__malloc_alloc_oom_handler = f;	 /* 将f记录起来,以便日后调用 */
+        return (old);
+    }
+}
+template <int inst>
+void (*__malloc_alloc_oom_template<inst>::__malloc_alloc_oom_handler)() = 0;
+template<int inst>
+void* __malloc_alloc_template<inst>::oom_malloc(size_t n){
+    
+}
 ```
 
 
