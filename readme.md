@@ -4713,8 +4713,20 @@ private:
     static char* end_free;		/* 指向空闲内存池的尾 */
     static size_t heap_size;	/* 累计分配的内存总量 */
 public:
-    static void* allocate(size_t n){
-        
+    static void* allocate(size_t n){ 
+        obj* volatile *my_free_list;
+        obj* result;
+        if(n > (size_t)__MAX_BYTES){ /* 大内存块直接调用一级分配器进行处理 */
+            return (malloc_alloc::allocate(n));
+        }
+        my_free_list = free_list + FREELIST_INDEX(n);
+        result = *my_free_list;
+        if(result == 0){ /* 当前链表没有已分配的空闲内存块 */
+            void* r = refill(ROUND_UP(n)); /* 申请内存 */
+            return r;
+        }
+        *my_free_list = result->free_list_link;  /* 有空闲内存块,取出一个并返回 */
+        return (result);
     }
     /* 该内存释放存在两大缺陷,1:无法判断归还的内存是否是从该内存管理器中分配出去的,任何内存都可以挂入链表
     			   		  2:归还的内存大小,如果不是8的倍数,且下次仍然被使用,将带来灾难*/
@@ -4730,14 +4742,98 @@ public:
         *my_free_list = q;
     }
 }
-/* 分配内存,内存管理核心部分 */
+/* 分配内存并管理空闲内存池,内存管理核心部分 */
 template <bool threads, int inst>		/* nobjs是引用传入 */
 char* __default_alloc_template<threads,inst>::chunk_alloc(size_t size, int &nobjs)
 {
     char* result;
-    size_t total_bytes = size*nobjs; /* 本次要申请分配的内存 */
-    size_t 
+    size_t total_bytes = size*nobjs; 			/* 本次要申请分配的内存 */
+    size_t bytes_left = end_free-start_free; 	/* 线程池中剩余内存块大小 */
+    if(bytes_left > total_bytes){ 			/* 从内存池中分配,内存池中的空间足够本次内存分配 */
+        result = start_free;
+        start_free += total_bytes;		/* 调整内存池中剩余内存大小 */
+        return (result);
+    }else if(bytes_left >= size){ 	/* 空间不够,但满足一个以上内存块的分配 */
+        nobjs = bytes_left/size;	/* 改变内存块的需求数量 */
+        total_bytes = size*nobjs;	/* 改变内存需求总量 */
+        result = start_free;	
+        start_free += total_bytes;	/* 调整内存池中剩余内存大小 */
+        return (result);
+    }else{ 	/* 内存池中的剩余内存不够,需要申请新内存 */
+        /* 本次需要申请的内存大小 */
+        size_t bytes_to_get = 2*total_bytes + ROUND_UP(heap_size >> 4); 
+        if(bytes_left > 0){ /* 内存池中还有空闲内存,将其视为内存碎片,挂入对应的空闲链表中 */
+            obj* volatile *my_free_list = free_list + FREELIST_INDEX(bytes_left);
+            /* 挂入对应的空闲链表中 */
+            ((obj*)start_free)->free_list_link = *my_free_list;
+            *my_free_list = (obj*)start_free;
+        }
+        start_free = (char*)malloc(bytes_to_get); /* 申请新内存 */
+        if(0 == start_free){ 	/* 内存申请失败 */
+            int i;
+            obj* volatile *my_free_list;
+            obj* p;
+            /* 向上遍历,从已分配的空闲内存中分割,此处的i从size+__ALIGN处开始遍历更合理 */ 
+            for(i = size; i <= __MAX_BYTES; i += __ALIGN){
+                my_free_list = free_list + FREELIST_INDEX(i);
+                p = *my_free_list; 
+                if(0 != p){ /* 该空闲链表中存在空闲内存块 */
+                    *my_free_list = p->free_list_link; /* 拿一块出来,更新该空闲链表头指针 */
+                    start_free = (char*)p;   	/* 拿了一块空闲内存给空闲内存池 */
+                    end_free = start_free + i;
+                    retrun (chunk_alloc(size, nobjs)); /* 内存池中有空闲块,再试一次 */
+                    /* 此时的内存池中至少能提供一个内存块,剩余内存碎片会被挂入到指定空闲链表中 */
+                }
+            }
+            /* 已经彻底没有内存了,尝试一级分配器的new handler,看看还能否有一线希望 */
+            end_free = 0; 
+            start_free = (char*)malloc_alloc::allocate(bytes_to_get);
+        }
+        heap_size += bytes_to_get;  			/* 累加分配总量 */
+        end_free = start_free + bytes_to_get;	/* 更新空闲内存池 */
+        reruen (chunk_alloc(size, nobjs));		/* 递归在试一次 */
+    }
 }
+template<bool threads, int inst>  /* 申请内存,并将申请到的内存串成链表 */
+void __default_alloc_template<threads, inst>::refill(size_t n){ /* n已调整至8的倍数 */
+	int nobjs = 20;	/* 预设,一次最大取20个内存块 */
+    char* chunk = chunk_alloc(n,nobjs); /* 注意nobjs是引用传入 */
+    obj* volatile *my_free_list;
+    obj* result;
+    obj* current_obj;
+    obj* next_obj;
+    int i;
+    if(1 == nobjs) { /* 只有一块,无法串成链表 */
+        return (chunk);
+    }
+    my_free_list = free_list + FREELIST_INDEX(n);
+    result = (obj*)chunk; 	/* 第一个内存块用于返回 */
+    *my_free_list = next_obj = (obj*)(chunk+n);
+    for(i = 1; ;++i){ /* 将内存块串成链表 */
+        current_obj = next_obj;
+        next_obj = (obj*)((char*)next_obj+n); /* 下一个内存块 */
+        if(nobjs == i){ /* 最后一个 */
+            current_obj->free_list_link = 0;
+            break;
+        }else{
+            current_obj->free_list_link = next_obj;
+        }
+    }
+    return (result);
+}
+/* 静态变量定义 */
+template <bool threads, int inst>
+char* __default_alloc_template<threads, inst>::start_free = 0;
+template <bool threads, int inst>
+char* __default_alloc_template<threads, inst>::end_free = 0;
+template <bool threads, int inst>
+char* __default_alloc_template<threads, inst>::heap_size = 0;
+template <bool therads, int inst>
+__default_alloc_template<threads, inst>::obj* volatile 
+__default_alloc_template<threads, inst>::free_list[__NFREELIST]
+    = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+/* 二级分配器的名称 */
+typedef __default_alloc_template<false,0>alloc;
 ```
 
 
