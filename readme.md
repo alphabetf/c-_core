@@ -4613,13 +4613,14 @@ new_handler set_new_handler(new_handler p) throw();	/* 实在自定义new handle
 **std::alloc:**
 
 ```c++
+/* 该内存管理器适用于频繁的分配小内存块,且每次分配的内存大小相对固定,std中的容器就是这种情况 */
 #include <cstdlib>
 #include <cstddef>
 #include <new>
 #define __THROW_BAD_ALLOC \
 		err<<"out of memory"; exit(1)
 /* 第一级分配器 */
-template<int inst>
+template<int inst> /* inst在此处完全没有作用 */
 class __malloc_alloc_template{ /* 一级分配器是直接调用malloc进行内存分配,不进行内存管理 */
 private:
     /* 静态变量声明 */
@@ -4650,11 +4651,92 @@ public:
         return (old);
     }
 }
+/* 静态函数定义 */
 template <int inst>
 void (*__malloc_alloc_oom_template<inst>::__malloc_alloc_oom_handler)() = 0;
+/* 内存分配失败时调用 */
 template<int inst>
 void* __malloc_alloc_template<inst>::oom_malloc(size_t n){
-    
+    void (*my_malloc_handler)();
+    voi* result;
+    for(;;){ /* 不断的尝试分配内存 */
+        my_malloc_handler = __malloc_alloc_oom_handler;/*换个名称,可能是考虑到多线程的情况*/
+        if(0 == my_malloc_handler){ __THROW_BAD_ALLOC; }
+        /* 对函数名称取地址和解引用得到的都是函数的地址 */
+        (*my_malloc_hanlder)();	/* 调用new handler,尝试释放内存 */
+        result = malloc(n);		/* 再次尝试分配内存 */
+        if(result){
+            return (result); 
+        }
+    }
+}
+/* 重新调整已分配内存失败时 */
+template<int inst>
+void* __malloc_alloc_template<inst>::oom_realloc(void* p, size_t n){
+    void (*my_malloc_handler)();
+    void* result;
+    for(;;){
+        my_malloc_handler = __malloc_alloc_oom_handler;	/*换个名称,可能是考虑到多线程的情况*/
+        if(0 == my_malloc_handler) { __THROW_BAD_ALLOC; }
+        /* 对函数名称取地址和解引用得到的都是函数地址 */
+        (*my_malloc_handler)(); /* 调用new handler,尝试释放内存 */
+        result = realloc(p,n);	/* 再次尝试 */
+        if(result){
+            return (result);
+        }
+    }
+}
+typedef __malloc_alloc_template<0> malloc_alloc;  /* 给一级分配器重新起别名 */
+/* 二级分配器 */
+enum {__ALIGN = 8}; 		/* 小内存块的上调边界 */
+enum {__MAX_BYTES = 128};   /* 小内存块的最大上限 */
+enum {__NFREELISTS = __MAX_BYTES/__ALIGN}; /* 内存管理器的链表个数 */
+/* 枚举常量应该写成静态常量或者宏定义如static const int x = N */
+template <bool threads, int inst>
+class __default_alloc_template{
+private:
+    static size_t ROUND_UP(size_t bytes){ /* 按照8字节向上对齐 */
+        return (((bytes)+__ALIGN-1)&~(__ALIGN-1));
+    }
+private:
+    union obj{	/* 嵌入式指针,用于形成链表 */
+        union obj* free_list_link;
+    }
+private:
+    static obj* volatile free_list[__NFREELISTS];	/* 管理的链表数量 */
+    static size_t FREELIST_INDEX(size_t bytes){ 	/* 根据字节大小索引到对应的第几号链表 */
+        return ((((bytes)+(__ALIGN-1))/__ALIGN)-1);
+    }
+    static void* refill(size_t n);	
+    static char* chunk_alloc(size_t size, int &nobjs);	/* 申请size*nobjs的内存块 */
+    static char* start_free;	/* 指向空闲内存池的头 */
+    static char* end_free;		/* 指向空闲内存池的尾 */
+    static size_t heap_size;	/* 累计分配的内存总量 */
+public:
+    static void* allocate(size_t n){
+        
+    }
+    /* 该内存释放存在两大缺陷,1:无法判断归还的内存是否是从该内存管理器中分配出去的,任何内存都可以挂入链表
+    			   		  2:归还的内存大小,如果不是8的倍数,且下次仍然被使用,将带来灾难*/
+    static void deallocate(void* p, size_t n){ /* 将归还的内存串入空闲链表 */
+        obj* q = (obj*)p;
+        obj* volatile *my_free_list;
+        if(n > (size_t)__MAX_BYTES){ /* 大内存块不在管理范围内 */
+            malloc_alloc::dellocate(p, n);
+            return;
+        }
+        my_free_list = free_list + FREELIST_INDEX(n); /* 找到要挂入的第几号空闲链表 */
+        q->free_list_link = *my_free_list;	/* 挂入链表 */
+        *my_free_list = q;
+    }
+}
+/* 分配内存,内存管理核心部分 */
+template <bool threads, int inst>		/* nobjs是引用传入 */
+char* __default_alloc_template<threads,inst>::chunk_alloc(size_t size, int &nobjs)
+{
+    char* result;
+    size_t total_bytes = size*nobjs; /* 本次要申请分配的内存 */
+    size_t 
 }
 ```
 
